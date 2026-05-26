@@ -1,3 +1,0 @@
-# for training
-torchpack==0.3.1
-mpi4py==3.0.3
