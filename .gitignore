@@ -1,0 +1,31 @@
+# Local dataset symlink (huge nuScenes data, not for the repo)
+/nuscenes
+
+# Nested git history from the X-Drive reference repo
+Reference_code/X-Drive/.git/
+Reference_code/X-Drive/.git_backup_for_upload/
+
+# Large third-party libs vendored into X-Drive (xformers ~92 MB)
+Reference_code/X-Drive/third_party/xformers/
+
+# Large binary demo tensors (~44 MB)
+Reference_code/X-Drive/demo/data/*.pth
+
+# Broken / external symlinks inside X-Drive
+Reference_code/X-Drive/outputs
+Reference_code/X-Drive/pretrained
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
