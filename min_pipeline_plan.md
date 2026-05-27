@@ -80,6 +80,37 @@ Three scope levels were considered. They differ in how much of the paper's atten
 
 The minimum pipeline executes (A). Once M3 passes on (A), revisit whether to extend to (B) as a follow-on — at that point the data loader, LiDAR VAE, U-Net skeleton, and training loop are all proven, so the only delta is the multi-view input + the swapped attention block. (C) is **not** on the roadmap for this hardware.
 
+#### Why A first, not B first
+
+(B) is more paper-faithful — it exercises 2 of the paper's 3 attention block types (Self-Attn + paper-faithful Cross-Sensor self-attn over concatenated tokens), vs (A)'s 1 / 3 (Self-Attn only — Cross-Attn is one-way SD-style, not the paper's symmetric concat-self-attn). Despite that, (A) is the right **starting point** because of bug-triage cost:
+
+| Criterion | (A) wins | (B) wins |
+|---|---|---|
+| **Iteration speed on bugs during M0–M3** | ✅ small surface to debug | |
+| **VRAM headroom in M3 (peak)** | ✅ ~5 GB | ❌ ~7–8 GB |
+| **Triage when something fails in M3** | ✅ single-suspect path | ❌ data loader + cross-view fusion + cross-sensor self-attn + base pipeline all candidates |
+| **What's already built (M-1, configs, checkpoints)** | ✅ all wired for single-camera shapes | ❌ would need retro-fit |
+| **Latent-cache cost in M2** | ✅ 1× SD VAE pass per sample (~400 passes) | ❌ 6× per sample (~2400 passes) |
+| **Paper-faithfulness** | | ✅ 2/3 attn blocks faithful |
+| **360° conditioning quality** | | ✅ back/side cameras anchor unseen regions |
+
+**The decisive argument is bug-localization.** With (A), a NaN loss in M3 has ~5 suspects (data normalization, VAE latent stats, U-Net stem, noise schedule, EMA). With (B) starting from scratch, the suspect list expands to include: 6-camera batch shape, cross-view fusion block, paper-faithful cross-sensor concat indexing, KV token-count math, symmetric self-attn projections. Could be multi-day debug vs sub-hour.
+
+#### Upgrade path A → B is short and surgical
+
+Once (A) is proven (M3 trains cleanly, M4 produces a non-trivial BEV), going A → B is ~180 LOC of localized change against the working baseline:
+
+| Change | Code delta | LOC |
+|---|---|---|
+| Data loader returns 6 RGB tensors instead of 1 | new `data/nuscenes_mini_paired.py` method | ~20 |
+| Image encoder handles batch-of-views (one reshape) | `models/image_encoder.py` | ~5 |
+| New `CrossViewFusion` block (input-side flatten-concat-selfattn) | one class | ~50 |
+| New `CrossSensorSelfAttn` (paper-faithful symmetric, swap with `CrossAttention` in U-Net wiring) | one class | ~80 |
+| Config updates for KV channel count and 6-cam batch | `configs/min.yaml` | 1 |
+| M-1 shape-test updates for the new tensor shapes | a few asserts | ~20 |
+
+Each item is **independently testable against the proven (A) baseline**. The investment to get to (A) is roughly 2–3 days of pipeline work; skipping straight to (B) is roughly 4–5 days plus much higher tail-risk on debug time. (A) → (B) is the strictly safer trajectory to the same final state.
+
 ---
 
 ## Architecture (minimum spec)
@@ -134,7 +165,7 @@ Justified by [Questionaire/test_answered.md](/media/skr/storage/self_driving/sen
 |---|---|
 | Provenance | **Written from scratch.** No pretrained checkpoint loaded. |
 | Pretrained alternatives considered | (a) SD 1.5 U-Net: rejected — expects 4-ch RGB latent at `64×64`, our LiDAR latent is 8-ch at `8×256`; adapting input/output convs breaks transferable features. (b) copilot4D world model: rejected — discrete-token MaskGIT, see [Optional extension](#optional-extension--reuse-copilot4ds-backbone-deferred-not-in-m0m5). |
-| Weight init | Kaiming-normal on conv layers; zero-init on the final output conv and on AdaLN-Zero scale/shift projections (stabilizes early diffusion training). |
+| Weight init | Kaiming-normal on conv layers; zero-init on the final output conv. Timestep injection uses **FiLM-style additive modulation** inside each ResBlock (see §"Detailed block stack" below). |
 | Parameter count target | ~25–35 M. Knob is the channel multiplier in [`configs/min.yaml`](#repository-layout); start at `[96, 192, 384]` and adjust if VRAM is tight. |
 
 ### Detailed block stack
@@ -170,7 +201,7 @@ Notes:
 - Every conv that touches the W axis uses **circular padding on W, zero padding on H** — handcrafted wrapper, ~10 LOC.
 - **Cross-attention KV is pre-pooled to a fixed `[8, 64]` grid outside the U-Net** and reused at every block. Without pooling, KV is `32×56 = 1792` tokens, Q at level 0 is `8×256 = 2048` tokens; the attention matrix dominates VRAM. Adaptive average pool `(32,56) → (8,64)` shrinks KV to 512 tokens (3.5× saving) at the cost of spatial precision in the image conditioning. The pool is applied **after** the image-latent + raymap concat so both are downsampled together.
 - `K, V` projections are computed once from `kv_context` outside the U-Net (the same KV is reused at every block).
-- Timestep `t` enters via sinusoidal embedding → 2-layer MLP → per-block **AdaLN-Zero**: the per-block linear that produces (scale, shift) modulation has its **output weights and bias both zero-initialised**, so each block starts as the identity function (matches DiT / Peebles 2023). No separate class/text conditioning.
+- Timestep `t` enters via sinusoidal embedding → 2-layer MLP → per-block **FiLM-style additive injection** inside each ResBlock: a per-block `Linear(t_embed_dim → out_channels) → SiLU` projects the time embedding to per-channel features and **adds** them to the activation map between the two convs (`h = h + emb_proj(t_emb)[:, :, None, None]`). This is the SD / OpenAI-ADM / MVDream / RangeLDM pattern. Rejected DiT-style AdaLN-Zero because no [Reference_code/](Reference_code/) ref implements it and the marginal stability gain doesn't justify a from-scratch implementation at this scale. No separate class/text conditioning. Full detail and porting plan: [s2s_min/docs/lidar-unet.md](s2s_min/docs/lidar-unet.md).
 - All ResBlocks avoid in-place ops so they remain safe under `torch.utils.checkpoint`.
 
 ### Training regime & freeze policy across milestones
@@ -265,7 +296,7 @@ Goal: `train/smoke_test.py` runs without error on one sample.
 3. Encode image with frozen SD VAE → `[1,4,32,56]`. Build raymap **directly at the 32×56 grid** using scaled intrinsics → `[1,6,32,56]`. Concat → `[1,10,32,56]`. **Adaptive-pool to `[1,10,8,64]`** as `kv_context`.
 4. Encode LiDAR through (random-init) LiDAR VAE → `[1,8,8,256]`.
 5. Add noise per a `DDPMScheduler` for `t=500`. Run U-Net forward (Q=LiDAR latent, KV=pooled image+raymap). Compute MSE on predicted noise. Backward. Adam step.
-6. **Pass criterion:** finite, non-NaN loss; no shape errors; <8 GB peak VRAM.
+6. **Pass criterion:** finite, non-NaN loss; no shape errors; **peak VRAM < 6 GB on the 11.6 GB RTX 3060 (expected: 2–3 GB)**. The smoke test is batch 1, no EMA, no grad accumulation, no fp16 autocast required — it should be cheap. If it hits 6+ GB, something is wrong (U-Net oversize, activation leak, or fp16 not actually engaged where expected). The looser ~7–8 GB target is for M3 (training), not M0 (smoke test).
 
 ### M1 — Phase A: LiDAR VAE training (1 day)
 
@@ -296,7 +327,7 @@ Goal: `train/train_diffusion.py` overfits 10 cached samples, then completes 1 ep
 - Conditioning dropout 0.2 on the image-side KV (paper Sec. B.2).
 - **Overfit milestone:** loss drops monotonically over ~1k steps on 10 samples.
 - **Epoch milestone:** 1 epoch (~400 batches × 1 grad-accum step = ~100 optimizer steps).
-- **Pass criterion:** loss finite; DDIM 25-step inference produces a non-trivial range image when fed a held-out image.
+- **Pass criterion:** loss finite; DDIM 25-step inference produces a non-trivial range image when fed a held-out image; **peak VRAM < 9 GB on the 11.6 GB RTX 3060 (expected: 5–7 GB)**. If VRAM peaks above 9 GB, leaves no room for desktop/browser → first move is verifying EMA shadow weights are on CPU (not GPU). Stretch configs (batch 2 actual, larger KV grid, no EMA-CPU offload) can take it to ~10 GB — revisit only after the base config is stable.
 
 ### M4 — End-to-end inference + visualization (~2 hours)
 
@@ -357,7 +388,7 @@ These blocks were written for **discrete-token MaskGIT** on a **non-periodic BEV
 1. **Set `T=1`** in `SpatioTemporalBlock` so the temporal attention collapses and the block behaves as pure spatial Swin. The temporal axis is out of scope for the minimum pipeline.
 2. **Replace input embedding** — copilot4D embeds discrete token IDs via `nn.Embedding`. For Sensor2Sensor, use `Conv2d(in=lidar_latent_ch + raymap_ch, out=dim_0)` on continuous latents.
 3. **Replace output head** — swap `LayerNorm → tied Linear → 1025-class logits` for `LayerNorm → Conv2d(dim_0 → lidar_latent_ch)` to predict continuous ε (or v).
-4. **Add timestep conditioning** — copilot4D has none of the continuous-DDPM machinery. Inject sinusoidal-timestep embedding via AdaLN-Zero (shift/scale per block).
+4. **Add timestep conditioning** — copilot4D has none of the continuous-DDPM machinery. Inject sinusoidal-timestep embedding via FiLM-style additive injection per block (per the same recipe used in our main LiDAR U-Net — see [s2s_min/docs/lidar-unet.md](s2s_min/docs/lidar-unet.md)).
 5. **Add image cross-attention** — copilot4D conditions only on a 16-d action vector. Add a `CrossAttention(Q=lidar_tokens, K=V=image_VAE_latent + raymap)` after each Swin self-attn.
 6. **Handle azimuth periodicity** — Swin window partitioning assumes both spatial axes are non-periodic. The W axis of the 32×1024 range image wraps at 0°/360°. Either pad cyclically on W before partitioning windows, or accept the seam artifact at the boundary.
 
@@ -415,4 +446,4 @@ All four invocations complete on the 3060 in <12 GB VRAM and produce a BEV plot.
 4. **Range-image LiDAR is forgiving but lossy.** Spherical unprojection from a 32×1024 grid won't recover 32-beam nuScenes returns exactly — that is expected and noted in [implementation.md](/media/skr/storage/self_driving/sensor2sensor/implementation.md) §10.
 5. **nuScenes mini has only 10 scenes.** Diversity is awful; the model **will** overfit and **won't** generalize. That's acceptable because the goal is pipeline validation, not paper-quality results.
 6. **Cross-attn KV pooling loses image spatial precision.** Adaptive-pooling `(32,56) → (8,64)` saves ~3.5× attention VRAM but blurs the conditioning signal at the level of small distant objects. If M3 output shows that conditioning is ignored (LiDAR drifts independent of input image), revisit: try `(16,32)` KV grid, or switch to multi-scale image features (one KV grid per U-Net level).
-7. **In-place ops break `torch.utils.checkpoint`.** When writing the ResBlock + AdaLN-Zero modulation, avoid `tensor.add_()`, `F.silu(x, inplace=True)`, `nn.ReLU(inplace=True)`, etc. Each checkpointed forward must re-run cleanly with the same inputs.
+7. **In-place ops break `torch.utils.checkpoint`.** When writing the ResBlock + FiLM timestep injection, avoid `tensor.add_()`, `F.silu(x, inplace=True)`, `nn.ReLU(inplace=True)`, etc. Each checkpointed forward must re-run cleanly with the same inputs.

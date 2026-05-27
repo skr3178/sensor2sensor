@@ -28,6 +28,21 @@ Reference_code/RangeLDM/
 # light-field-networks local clone (kept locally, not pushed)
 Reference_code/light-field-networks/
 
+# LiDAR-Diffusion local clone (kept locally, not pushed)
+Reference_code/LiDAR-Diffusion/
+
+# Pytorch-UNet local clone (kept locally, not pushed)
+Reference_code/Pytorch-UNet/
+
+# diffusers local clone (kept locally, not pushed)
+Reference_code/diffusers/
+
+# guided-diffusion local clone (kept locally, not pushed)
+Reference_code/guided-diffusion/
+
+# Reference paper PDFs (kept locally, not pushed)
+Reference_code/**/*.pdf
+
 # Reference_code/X-Drive is a git submodule (yichen928/X-Drive)
 
 # Python

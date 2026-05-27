@@ -27,13 +27,22 @@ class CircularConv2d(nn.Module):
 
 
 class ResBlock(nn.Module):
-    """Pre-norm ResNet block: GN -> SiLU -> CircConv -> GN -> SiLU -> CircConv (zero-init).
+    """Pre-norm ResNet block: GN -> SiLU -> CircConv -> (FiLM t_emb add) -> GN -> SiLU -> CircConv (zero-init).
 
-    AdaLN-Zero timestep modulation will be added in M0; for the M-1 shape test we
-    leave the block free of timestep input.
+    Optional FiLM-style timestep injection (the OpenAI ADM pattern, also used by
+    Stable Diffusion). If `t_emb_dim` is None (default), the block is timestep-free
+    — backward compatible with the LiDAR VAE in M1 which calls `block(x)`.
+
+    Args:
+        in_ch:      input channels.
+        out_ch:     output channels.
+        groups:     GroupNorm group count (clamped to min(groups, channels)).
+        t_emb_dim:  if set, allocate an `emb_proj` MLP and inject FiLM additive
+                    modulation between the two convs in forward. If None, the
+                    block ignores any t_emb argument.
     """
 
-    def __init__(self, in_ch: int, out_ch: int, groups: int = 32):
+    def __init__(self, in_ch: int, out_ch: int, groups: int = 32, t_emb_dim: int | None = None):
         super().__init__()
         g_in = min(groups, in_ch)
         g_out = min(groups, out_ch)
@@ -48,9 +57,22 @@ class ResBlock(nn.Module):
             if in_ch != out_ch
             else nn.Identity()
         )
+        # Optional FiLM timestep modulation. SiLU goes inside (ADM convention)
+        # so the projection's output is centered before the add.
+        if t_emb_dim is not None:
+            self.emb_proj = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(t_emb_dim, out_ch),
+            )
+        else:
+            self.emb_proj = None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor | None = None) -> torch.Tensor:
         h = self.conv1(F.silu(self.norm1(x)))
+        if self.emb_proj is not None:
+            assert t_emb is not None, "ResBlock has t_emb_dim set but received t_emb=None"
+            # FiLM additive: broadcast per-channel features over (H, W).
+            h = h + self.emb_proj(t_emb)[:, :, None, None]
         h = self.conv2(F.silu(self.norm2(h)))
         return self.skip(x) + h
 
@@ -115,7 +137,20 @@ class Upsample2d(nn.Module):
 class EncoderLevel(nn.Module):
     """One encoder level: N x (ResBlock + SelfAttn + CrossAttn), then DownsampleW.
 
-    Used in M-1 as the unit under shape-test.
+    Backward-compatible with M-1 callers (no t_emb, no skip return). New U-Net
+    callers pass `t_emb_dim` and `return_skip=True`.
+
+    Args:
+        in_ch:           input channels (first ResBlock's input width).
+        out_ch:          output channels (all subsequent ResBlocks).
+        kv_channels:     channels of the cross-attention KV context.
+        num_res_blocks:  how many [ResBlock + SelfAttn + CrossAttn] triplets.
+        num_heads:       attention head count.
+        do_downsample:   if True, append a W-only DownsampleW after the blocks.
+        t_emb_dim:       if set, ResBlocks accept FiLM timestep conditioning.
+        return_skip:     if True, forward returns (downsampled, skip_feature),
+                         where `skip_feature` is the post-block-stack pre-downsample
+                         tensor used by the decoder's skip-concat.
     """
 
     def __init__(
@@ -126,22 +161,37 @@ class EncoderLevel(nn.Module):
         num_res_blocks: int = 2,
         num_heads: int = 8,
         do_downsample: bool = True,
+        t_emb_dim: int | None = None,
+        return_skip: bool = False,
     ):
         from .attention import SelfAttention, CrossAttention
 
         super().__init__()
+        self.return_skip = return_skip
+        self.t_emb_dim = t_emb_dim
         self.res_blocks = nn.ModuleList()
         self.self_attns = nn.ModuleList()
         self.cross_attns = nn.ModuleList()
         for i in range(num_res_blocks):
-            self.res_blocks.append(ResBlock(in_ch if i == 0 else out_ch, out_ch))
+            self.res_blocks.append(
+                ResBlock(in_ch if i == 0 else out_ch, out_ch, t_emb_dim=t_emb_dim)
+            )
             self.self_attns.append(SelfAttention(out_ch, num_heads=num_heads))
             self.cross_attns.append(CrossAttention(out_ch, kv_channels, num_heads=num_heads))
         self.downsample = DownsampleW(out_ch) if do_downsample else nn.Identity()
 
-    def forward(self, x: torch.Tensor, kv: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        kv: torch.Tensor,
+        t_emb: torch.Tensor | None = None,
+    ):
         for res, sa, ca in zip(self.res_blocks, self.self_attns, self.cross_attns):
-            x = res(x)
+            x = res(x, t_emb=t_emb)
             x = sa(x)
             x = ca(x, kv)
-        return self.downsample(x)
+        skip = x
+        x = self.downsample(x)
+        if self.return_skip:
+            return x, skip
+        return x

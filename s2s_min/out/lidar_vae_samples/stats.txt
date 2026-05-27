@@ -1,0 +1,16 @@
+checkpoint     : s2s_min/out/lidar_vae.pt
+step           : 2513
+arch kwargs    : {'in_channels': 3, 'latent_channels': 8, 'base_channels': 32}
+params         : 2.07 M
+input shape    : (4, 3, 32, 1024)  (range/intensity/validity in [0, 1], fp32)
+latent mu      : (4, 8, 8, 256)  mean=+0.557  std=1.301
+latent logvar  : (4, 8, 8, 256)  mean=-5.790  std=1.190
+recon shape    : (4, 3, 32, 1024)
+
+per-sample reconstruction (lower = better; L1_range_m back-scaled to meters):
+  name                                                          L1_range_m  L1_intens  BCE_valid  valid_acc
+  n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.p       6.069     0.1656     0.4798      0.862
+  n015-2018-07-24-10-42-41+0800__LIDAR_TOP__1532400184697364.p       8.668     0.1419     0.5001      0.830
+  n008-2018-08-01-15-52-19-0400__LIDAR_TOP__1533153403297326.p       6.901     0.1390     0.4812      0.844
+  n015-2018-08-01-15-10-21+0800__LIDAR_TOP__1533107659547179.p       7.384     0.1661     0.4731      0.881
+  MEAN                                                               7.256     0.1531     0.4835      0.854

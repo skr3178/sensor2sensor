@@ -1,0 +1,13 @@
+checkpoint     : s2s_min/checkpoints/sd15_vae
+scaling_factor : 0.18215
+latent_channels: 4
+block_out_channels: [128, 256, 512, 512]
+input shape    : [B=4, 3, 256, 448]  (RGB in [-1, 1], fp16)
+output shape   : (4, 4, 32, 56)  (latent post scaling_factor)
+
+per-sample latent stats (post-scaling):
+  name                                                              mean     std      min      max
+  n015-2018-07-18-11-07-57+0800__CAM_FRONT__1531883531412477.j   +0.0373   0.747   -2.471   +3.734
+  n015-2018-07-11-11-54-16+0800__CAM_FRONT__1531281494262460.j   +0.0273   0.706   -2.881   +3.998
+  n008-2018-08-30-15-52-26-0400__CAM_FRONT__1535659294512404.j   +0.0224   0.833   -3.363   +4.223
+  n008-2018-09-18-15-26-58-0400__CAM_FRONT__1537299538412404.j   +0.0718   0.721   -4.031   +5.613
