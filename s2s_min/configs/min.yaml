@@ -6,6 +6,12 @@ image:
   width: 448
   sd_vae_downsample: 8          # SD 1.5 VAE: spatial /8
   latent_channels: 4            # SD 1.5 VAE latent
+  # Project-local checkpoint location. Populated by scripts/download_image_vae.py.
+  # When this folder is present, image_encoder.py loads from it directly instead of
+  # falling back to the HuggingFace global cache (~/.cache/huggingface/).
+  vae_local_dir: s2s_min/checkpoints/sd15_vae
+  vae_subfolder: vae           # files live at {vae_local_dir}/{vae_subfolder}/
+  vae_variant: fp16            # loads diffusion_pytorch_model.fp16.safetensors
 
 raymap:
   channels: 6                   # origin (3) + direction (3)

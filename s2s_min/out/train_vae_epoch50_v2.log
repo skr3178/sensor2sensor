@@ -1,0 +1,123 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 2 x 4 = effective 8
+  lr / weight_decay       : 0.0004 / 0.0001
+  loss weights            : range=50.0  intensity=1.0  validity=1.0  kl=1e-06
+  EMA decay               : 0.999
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_ema.pt
+    best (EMA, lowest L1_range-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_best.pt
+  dataset size            : 401 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+  [step     1  epoch   0  t=   0.6s  vram=430MiB]  l1r_ema=0.40672  total=21.47921  L1_range=0.40672  L1_intensity=0.45030  BCE_validity=0.69315  KL=0.11638  
+  [step    50  epoch   0  t=  11.4s  vram=446MiB]  l1r_ema=0.32432  total=3.85179  L1_range=0.06767  L1_intensity=0.12984  BCE_validity=0.33853  KL=0.92487  
+  -- end of epoch 1/50 --  l1_range_ema=0.32432  best_so_far=0.32432
+  [step   100  epoch   1  t=  23.0s  vram=446MiB]  l1r_ema=0.21033  total=1.49373  L1_range=0.02139  L1_intensity=0.07034  BCE_validity=0.35375  KL=1.44512  
+  -- end of epoch 2/50 --  l1_range_ema=0.21033  best_so_far=0.21033
+  [step   150  epoch   2  t=  34.6s  vram=446MiB]  l1r_ema=0.13604  total=1.30981  L1_range=0.01817  L1_intensity=0.05671  BCE_validity=0.34453  KL=1.88035  
+  -- end of epoch 3/50 --  l1_range_ema=0.13604  best_so_far=0.13604
+  [step   200  epoch   3  t=  46.1s  vram=446MiB]  l1r_ema=0.08998  total=1.37716  L1_range=0.01773  L1_intensity=0.05870  BCE_validity=0.43172  KL=2.09467  
+  -- end of epoch 4/50 --  l1_range_ema=0.08924  best_so_far=0.08924
+  [step   250  epoch   4  t=  57.7s  vram=446MiB]  l1r_ema=0.06094  total=1.25379  L1_range=0.01766  L1_intensity=0.07558  BCE_validity=0.29523  KL=2.32866  
+  -- end of epoch 5/50 --  l1_range_ema=0.06051  best_so_far=0.06051
+  [step   300  epoch   5  t=  69.2s  vram=446MiB]  l1r_ema=0.04279  total=1.00503  L1_range=0.01350  L1_intensity=0.04657  BCE_validity=0.28361  KL=2.54170  
+  -- end of epoch 6/50 --  l1_range_ema=0.04249  best_so_far=0.04249
+  [step   350  epoch   6  t=  80.8s  vram=446MiB]  l1r_ema=0.03198  total=1.11454  L1_range=0.01399  L1_intensity=0.04340  BCE_validity=0.37182  KL=2.57199  
+  -- end of epoch 7/50 --  l1_range_ema=0.03178  best_so_far=0.03178
+  [step   400  epoch   7  t=  92.3s  vram=446MiB]  l1r_ema=0.02520  total=1.06022  L1_range=0.01518  L1_intensity=0.05754  BCE_validity=0.24347  KL=2.92435  
+  -- end of epoch 8/50 --  l1_range_ema=0.02490  best_so_far=0.02490
+  [step   450  epoch   8  t= 103.9s  vram=446MiB]  l1r_ema=0.02066  total=0.77081  L1_range=0.00950  L1_intensity=0.04312  BCE_validity=0.25250  KL=2.94328  
+  -- end of epoch 9/50 --  l1_range_ema=0.02047  best_so_far=0.02047
+  [step   500  epoch   9  t= 115.4s  vram=446MiB]  l1r_ema=0.01769  total=0.83274  L1_range=0.01121  L1_intensity=0.03712  BCE_validity=0.23519  KL=3.10480  
+  -- end of epoch 10/50 --  l1_range_ema=0.01755  best_so_far=0.01755
+  [step   550  epoch  10  t= 127.0s  vram=446MiB]  l1r_ema=0.01570  total=0.95944  L1_range=0.01284  L1_intensity=0.07272  BCE_validity=0.24492  KL=3.36163  
+  -- end of epoch 11/50 --  l1_range_ema=0.01565  best_so_far=0.01565
+  [step   600  epoch  11  t= 138.5s  vram=446MiB]  l1r_ema=0.01434  total=0.85442  L1_range=0.01162  L1_intensity=0.05954  BCE_validity=0.21390  KL=3.55774  
+  -- end of epoch 12/50 --  l1_range_ema=0.01433  best_so_far=0.01433
+  [step   650  epoch  12  t= 150.0s  vram=446MiB]  l1r_ema=0.01358  total=0.84439  L1_range=0.01185  L1_intensity=0.04112  BCE_validity=0.21075  KL=3.42400  
+  -- end of epoch 13/50 --  l1_range_ema=0.01351  best_so_far=0.01351
+  [step   700  epoch  13  t= 161.4s  vram=446MiB]  l1r_ema=0.01296  total=0.78323  L1_range=0.01084  L1_intensity=0.03451  BCE_validity=0.20685  KL=3.66336  
+  -- end of epoch 14/50 --  l1_range_ema=0.01295  best_so_far=0.01294
+  [step   750  epoch  14  t= 172.8s  vram=446MiB]  l1r_ema=0.01238  total=0.85989  L1_range=0.01287  L1_intensity=0.03399  BCE_validity=0.18228  KL=3.82410  
+  -- end of epoch 15/50 --  l1_range_ema=0.01239  best_so_far=0.01238
+  [step   800  epoch  15  t= 184.1s  vram=446MiB]  l1r_ema=0.01206  total=0.93110  L1_range=0.01251  L1_intensity=0.06737  BCE_validity=0.23806  KL=3.97717  
+  -- end of epoch 16/50 --  l1_range_ema=0.01204  best_so_far=0.01201
+  [step   850  epoch  16  t= 195.4s  vram=446MiB]  l1r_ema=0.01173  total=0.72266  L1_range=0.01037  L1_intensity=0.04115  BCE_validity=0.16312  KL=3.89191  
+  -- end of epoch 17/50 --  l1_range_ema=0.01174  best_so_far=0.01170
+  [step   900  epoch  17  t= 206.7s  vram=446MiB]  l1r_ema=0.01153  total=0.85642  L1_range=0.01304  L1_intensity=0.03310  BCE_validity=0.17126  KL=4.00455  
+  -- end of epoch 18/50 --  l1_range_ema=0.01170  best_so_far=0.01147
+  [step   950  epoch  18  t= 217.8s  vram=446MiB]  l1r_ema=0.06194  total=16.64687  L1_range=0.27314  L1_intensity=0.32497  BCE_validity=2.66479  KL=3.54660  
+  -- end of epoch 19/50 --  l1_range_ema=0.07005  best_so_far=0.01147
+  [step  1000  epoch  19  t= 228.9s  vram=446MiB]  l1r_ema=0.08947  total=3.92572  L1_range=0.06266  L1_intensity=0.26379  BCE_validity=0.52887  KL=3.54559  
+  -- end of epoch 20/50 --  l1_range_ema=0.08834  best_so_far=0.01147
+  [step  1050  epoch  20  t= 240.0s  vram=446MiB]  l1r_ema=0.07714  total=3.59327  L1_range=0.05390  L1_intensity=0.23434  BCE_validity=0.66369  KL=3.56282  
+  -- end of epoch 21/50 --  l1_range_ema=0.07599  best_so_far=0.01147
+  [step  1100  epoch  21  t= 251.1s  vram=446MiB]  l1r_ema=0.06446  total=2.95951  L1_range=0.04212  L1_intensity=0.21562  BCE_validity=0.63787  KL=3.53373  
+  -- end of epoch 22/50 --  l1_range_ema=0.06317  best_so_far=0.01147
+  [step  1150  epoch  22  t= 262.1s  vram=446MiB]  l1r_ema=0.05615  total=2.91891  L1_range=0.04161  L1_intensity=0.19073  BCE_validity=0.64761  KL=3.54001  
+  -- end of epoch 23/50 --  l1_range_ema=0.05537  best_so_far=0.01147
+  [step  1200  epoch  23  t= 273.2s  vram=446MiB]  l1r_ema=0.04948  total=2.73280  L1_range=0.03846  L1_intensity=0.20200  BCE_validity=0.60756  KL=3.55642  
+  -- end of epoch 24/50 --  l1_range_ema=0.04885  best_so_far=0.01147
+  [step  1250  epoch  24  t= 284.3s  vram=446MiB]  l1r_ema=0.04443  total=2.65974  L1_range=0.03758  L1_intensity=0.17056  BCE_validity=0.61025  KL=3.54513  
+  -- end of epoch 25/50 --  l1_range_ema=0.04384  best_so_far=0.01147
+  [step  1300  epoch  25  t= 295.4s  vram=446MiB]  l1r_ema=0.04061  total=2.42148  L1_range=0.03318  L1_intensity=0.17683  BCE_validity=0.58587  KL=3.53571  
+  -- end of epoch 26/50 --  l1_range_ema=0.04016  best_so_far=0.01147
+  [step  1350  epoch  26  t= 306.5s  vram=446MiB]  l1r_ema=0.03731  total=2.07655  L1_range=0.02617  L1_intensity=0.18997  BCE_validity=0.57815  KL=3.42239  
+  -- end of epoch 27/50 --  l1_range_ema=0.03689  best_so_far=0.01147
+  [step  1400  epoch  27  t= 317.5s  vram=446MiB]  l1r_ema=0.03475  total=2.15687  L1_range=0.02749  L1_intensity=0.20463  BCE_validity=0.57762  KL=3.40922  
+  -- end of epoch 28/50 --  l1_range_ema=0.03447  best_so_far=0.01147
+  [step  1450  epoch  28  t= 328.7s  vram=446MiB]  l1r_ema=0.03322  total=1.95152  L1_range=0.02433  L1_intensity=0.15950  BCE_validity=0.57571  KL=3.53860  
+  -- end of epoch 29/50 --  l1_range_ema=0.03300  best_so_far=0.01147
+  [step  1500  epoch  29  t= 339.7s  vram=446MiB]  l1r_ema=0.03233  total=2.24281  L1_range=0.02982  L1_intensity=0.17346  BCE_validity=0.57829  KL=3.42700  
+  -- end of epoch 30/50 --  l1_range_ema=0.03209  best_so_far=0.01147
+  [step  1550  epoch  30  t= 350.8s  vram=446MiB]  l1r_ema=0.03149  total=2.02922  L1_range=0.02595  L1_intensity=0.16321  BCE_validity=0.56844  KL=3.53572  
+  -- end of epoch 31/50 --  l1_range_ema=0.03150  best_so_far=0.01147
+  [step  1600  epoch  31  t= 361.9s  vram=446MiB]  l1r_ema=0.03099  total=1.99676  L1_range=0.02552  L1_intensity=0.15024  BCE_validity=0.57037  KL=3.53880  
+  -- end of epoch 32/50 --  l1_range_ema=0.03095  best_so_far=0.01147
+  [step  1650  epoch  32  t= 373.0s  vram=446MiB]  l1r_ema=0.03011  total=2.07474  L1_range=0.02711  L1_intensity=0.15097  BCE_validity=0.56806  KL=3.55570  
+  -- end of epoch 33/50 --  l1_range_ema=0.03012  best_so_far=0.01147
+  [step  1700  epoch  33  t= 384.1s  vram=446MiB]  l1r_ema=0.03025  total=2.63554  L1_range=0.03824  L1_intensity=0.16266  BCE_validity=0.56069  KL=3.45534  
+  -- end of epoch 34/50 --  l1_range_ema=0.03025  best_so_far=0.01147
+  [step  1750  epoch  34  t= 395.2s  vram=446MiB]  l1r_ema=0.03000  total=2.29501  L1_range=0.03190  L1_intensity=0.13731  BCE_validity=0.56293  KL=3.56156  
+  -- end of epoch 35/50 --  l1_range_ema=0.02989  best_so_far=0.01147
+  [step  1800  epoch  35  t= 406.2s  vram=446MiB]  l1r_ema=0.02993  total=2.39569  L1_range=0.03371  L1_intensity=0.14627  BCE_validity=0.56398  KL=3.54008  
+  -- end of epoch 36/50 --  l1_range_ema=0.02981  best_so_far=0.01147
+  [step  1850  epoch  36  t= 417.3s  vram=446MiB]  l1r_ema=0.02964  total=2.30376  L1_range=0.03171  L1_intensity=0.14720  BCE_validity=0.57101  KL=3.60943  
+  -- end of epoch 37/50 --  l1_range_ema=0.02965  best_so_far=0.01147
+  [step  1900  epoch  37  t= 428.4s  vram=446MiB]  l1r_ema=0.02953  total=2.18613  L1_range=0.02877  L1_intensity=0.16948  BCE_validity=0.57824  KL=3.49245  
+  -- end of epoch 38/50 --  l1_range_ema=0.02954  best_so_far=0.01147
+  [step  1950  epoch  38  t= 439.5s  vram=446MiB]  l1r_ema=0.02968  total=2.15935  L1_range=0.02935  L1_intensity=0.13732  BCE_validity=0.55451  KL=3.55366  
+  -- end of epoch 39/50 --  l1_range_ema=0.02969  best_so_far=0.01147
+  [step  2000  epoch  39  t= 450.6s  vram=446MiB]  l1r_ema=0.02945  total=2.24061  L1_range=0.03011  L1_intensity=0.15756  BCE_validity=0.57733  KL=3.51514  
+  -- end of epoch 40/50 --  l1_range_ema=0.02932  best_so_far=0.01147
+  [step  2050  epoch  40  t= 461.7s  vram=446MiB]  l1r_ema=0.04467  total=2.45814  L1_range=0.03448  L1_intensity=0.15290  BCE_validity=0.58113  KL=3.56778  
+  -- end of epoch 41/50 --  l1_range_ema=0.04352  best_so_far=0.01147
+  [step  2100  epoch  41  t= 472.8s  vram=446MiB]  l1r_ema=0.03940  total=2.33083  L1_range=0.03201  L1_intensity=0.15217  BCE_validity=0.57798  KL=3.55704  
+  -- end of epoch 42/50 --  l1_range_ema=0.03842  best_so_far=0.01147
+  [step  2150  epoch  42  t= 483.8s  vram=446MiB]  l1r_ema=0.03553  total=2.27155  L1_range=0.03130  L1_intensity=0.15352  BCE_validity=0.55290  KL=3.49919  
+  -- end of epoch 43/50 --  l1_range_ema=0.03503  best_so_far=0.01147
+  [step  2200  epoch  43  t= 494.9s  vram=446MiB]  l1r_ema=0.03310  total=2.39900  L1_range=0.03339  L1_intensity=0.16884  BCE_validity=0.56064  KL=3.45148  
+  -- end of epoch 44/50 --  l1_range_ema=0.03300  best_so_far=0.01147
+  [step  2250  epoch  44  t= 506.0s  vram=446MiB]  l1r_ema=0.03205  total=2.18984  L1_range=0.02978  L1_intensity=0.14798  BCE_validity=0.55297  KL=3.52354  
+  -- end of epoch 45/50 --  l1_range_ema=0.03177  best_so_far=0.01147
+  [step  2300  epoch  45  t= 517.1s  vram=446MiB]  l1r_ema=0.03098  total=2.07367  L1_range=0.02784  L1_intensity=0.15009  BCE_validity=0.53150  KL=3.45716  
+  -- end of epoch 46/50 --  l1_range_ema=0.03073  best_so_far=0.01147
+  [step  2350  epoch  46  t= 528.2s  vram=446MiB]  l1r_ema=0.03046  total=2.18478  L1_range=0.02931  L1_intensity=0.16023  BCE_validity=0.55918  KL=3.47289  
+  -- end of epoch 47/50 --  l1_range_ema=0.03038  best_so_far=0.01147
+  [step  2400  epoch  47  t= 539.2s  vram=446MiB]  l1r_ema=0.03019  total=1.96112  L1_range=0.02562  L1_intensity=0.14356  BCE_validity=0.53678  KL=3.56681  
+  -- end of epoch 48/50 --  l1_range_ema=0.03009  best_so_far=0.01147
+  [step  2450  epoch  48  t= 550.3s  vram=446MiB]  l1r_ema=0.02980  total=2.02838  L1_range=0.02670  L1_intensity=0.14864  BCE_validity=0.54464  KL=3.53097  
+  -- end of epoch 49/50 --  l1_range_ema=0.02976  best_so_far=0.01147
+  [step  2500  epoch  49  t= 561.4s  vram=446MiB]  l1r_ema=0.02982  total=2.35033  L1_range=0.03335  L1_intensity=0.13250  BCE_validity=0.55027  KL=3.64402  
+  -- end of epoch 50/50 --  l1_range_ema=0.02966  best_so_far=0.01147
+
+Final: step=2513, total_time=564.2s
+  live ckpt   : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+  EMA ckpt    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_ema.pt
+  best EMA    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_best.pt  (l1_range_ema=0.01147)
+  final losses: total=1.85529  L1_range=0.02377  L1_intensity=0.12126  BCE_validity=0.54545  KL=3.55242
+  final l1_range_ema: 0.02960

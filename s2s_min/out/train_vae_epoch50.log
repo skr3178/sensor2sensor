@@ -1,0 +1,116 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 2 x 4 = effective 8
+  lr / weight_decay       : 0.0004 / 0.0001
+  lam_kl                  : 1e-06
+  checkpoint out          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+  dataset size            : 401 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+  [step     1  epoch   0  t=   0.6s  vram=430MiB]  total=1.55016  L1_range=0.40672  L1_intensity=0.45030  BCE_validity=0.69315  KL=0.11638  
+  [step    50  epoch   0  t=  11.2s  vram=446MiB]  total=0.46656  L1_range=0.08435  L1_intensity=0.10604  BCE_validity=0.27617  KL=0.76295  
+  -- end of epoch 1/50 --
+  [step   100  epoch   1  t=  22.2s  vram=446MiB]  total=0.30563  L1_range=0.04542  L1_intensity=0.06091  BCE_validity=0.19930  KL=1.21101  
+  -- end of epoch 2/50 --
+  [step   150  epoch   2  t=  33.0s  vram=446MiB]  total=0.23118  L1_range=0.03066  L1_intensity=0.03894  BCE_validity=0.16158  KL=1.68650  
+  -- end of epoch 3/50 --
+  [step   200  epoch   3  t=  43.9s  vram=446MiB]  total=0.23919  L1_range=0.02928  L1_intensity=0.03517  BCE_validity=0.17474  KL=2.06820  
+  -- end of epoch 4/50 --
+  [step   250  epoch   4  t=  54.8s  vram=446MiB]  total=0.19827  L1_range=0.02794  L1_intensity=0.03835  BCE_validity=0.13198  KL=2.42755  
+  -- end of epoch 5/50 --
+  [step   300  epoch   5  t=  65.7s  vram=446MiB]  total=0.15055  L1_range=0.02152  L1_intensity=0.02621  BCE_validity=0.10281  KL=2.77413  
+  -- end of epoch 6/50 --
+  [step   350  epoch   6  t=  76.6s  vram=446MiB]  total=0.19036  L1_range=0.02677  L1_intensity=0.02990  BCE_validity=0.13369  KL=2.99025  
+  -- end of epoch 7/50 --
+  [step   400  epoch   7  t=  87.5s  vram=446MiB]  total=0.13971  L1_range=0.01964  L1_intensity=0.03013  BCE_validity=0.08993  KL=3.29086  
+  -- end of epoch 8/50 --
+  [step   450  epoch   8  t=  98.4s  vram=446MiB]  total=0.13298  L1_range=0.01744  L1_intensity=0.02411  BCE_validity=0.09143  KL=3.47164  
+  -- end of epoch 9/50 --
+  [step   500  epoch   9  t= 109.3s  vram=446MiB]  total=0.12473  L1_range=0.01634  L1_intensity=0.02008  BCE_validity=0.08830  KL=3.65314  
+  -- end of epoch 10/50 --
+  [step   550  epoch  10  t= 120.2s  vram=446MiB]  total=0.13409  L1_range=0.01820  L1_intensity=0.03309  BCE_validity=0.08279  KL=3.89681  
+  -- end of epoch 11/50 --
+  [step   600  epoch  11  t= 131.1s  vram=446MiB]  total=0.11359  L1_range=0.01941  L1_intensity=0.02485  BCE_validity=0.06933  KL=4.02641  
+  -- end of epoch 12/50 --
+  [step   650  epoch  12  t= 142.1s  vram=446MiB]  total=0.10125  L1_range=0.01977  L1_intensity=0.02134  BCE_validity=0.06014  KL=4.00953  
+  -- end of epoch 13/50 --
+  [step   700  epoch  13  t= 153.0s  vram=446MiB]  total=0.09551  L1_range=0.01710  L1_intensity=0.02037  BCE_validity=0.05803  KL=4.28242  
+  -- end of epoch 14/50 --
+  [step   750  epoch  14  t= 163.8s  vram=446MiB]  total=0.07649  L1_range=0.02071  L1_intensity=0.01980  BCE_validity=0.03597  KL=4.37105  
+  -- end of epoch 15/50 --
+  [step   800  epoch  15  t= 174.7s  vram=446MiB]  total=0.11045  L1_range=0.02044  L1_intensity=0.02719  BCE_validity=0.06283  KL=4.49600  
+  -- end of epoch 16/50 --
+  [step   850  epoch  16  t= 185.7s  vram=446MiB]  total=0.07093  L1_range=0.01484  L1_intensity=0.01620  BCE_validity=0.03989  KL=4.50136  
+  -- end of epoch 17/50 --
+  [step   900  epoch  17  t= 196.6s  vram=446MiB]  total=0.06392  L1_range=0.01842  L1_intensity=0.01821  BCE_validity=0.02728  KL=4.63042  
+  -- end of epoch 18/50 --
+  [step   950  epoch  18  t= 207.5s  vram=446MiB]  total=0.07407  L1_range=0.01874  L1_intensity=0.01909  BCE_validity=0.03623  KL=4.66973  
+  -- end of epoch 19/50 --
+  [step  1000  epoch  19  t= 218.4s  vram=446MiB]  total=0.05080  L1_range=0.01534  L1_intensity=0.01827  BCE_validity=0.01719  KL=4.78988  
+  -- end of epoch 20/50 --
+  [step  1050  epoch  20  t= 229.3s  vram=446MiB]  total=0.05472  L1_range=0.01418  L1_intensity=0.01921  BCE_validity=0.02132  KL=4.84895  
+  -- end of epoch 21/50 --
+  [step  1100  epoch  21  t= 240.2s  vram=446MiB]  total=0.05439  L1_range=0.01350  L1_intensity=0.01928  BCE_validity=0.02162  KL=4.89963  
+  -- end of epoch 22/50 --
+  [step  1150  epoch  22  t= 251.1s  vram=446MiB]  total=0.04819  L1_range=0.01304  L1_intensity=0.01873  BCE_validity=0.01641  KL=4.95646  
+  -- end of epoch 23/50 --
+  [step  1200  epoch  23  t= 262.0s  vram=446MiB]  total=0.05479  L1_range=0.01644  L1_intensity=0.01949  BCE_validity=0.01886  KL=5.01425  
+  -- end of epoch 24/50 --
+  [step  1250  epoch  24  t= 272.9s  vram=446MiB]  total=0.07059  L1_range=0.01763  L1_intensity=0.02516  BCE_validity=0.02779  KL=5.01680  
+  -- end of epoch 25/50 --
+  [step  1300  epoch  25  t= 283.8s  vram=446MiB]  total=0.03698  L1_range=0.01291  L1_intensity=0.01541  BCE_validity=0.00865  KL=5.07117  
+  -- end of epoch 26/50 --
+  [step  1350  epoch  26  t= 294.7s  vram=446MiB]  total=0.03364  L1_range=0.01056  L1_intensity=0.01454  BCE_validity=0.00854  KL=5.00692  
+  -- end of epoch 27/50 --
+  [step  1400  epoch  27  t= 305.6s  vram=446MiB]  total=0.04034  L1_range=0.01331  L1_intensity=0.01329  BCE_validity=0.01374  KL=5.01200  
+  -- end of epoch 28/50 --
+  [step  1450  epoch  28  t= 316.5s  vram=446MiB]  total=0.03187  L1_range=0.00957  L1_intensity=0.01662  BCE_validity=0.00567  KL=5.17953  
+  -- end of epoch 29/50 --
+  [step  1500  epoch  29  t= 327.4s  vram=446MiB]  total=0.04408  L1_range=0.01415  L1_intensity=0.01840  BCE_validity=0.01152  KL=5.10337  
+  -- end of epoch 30/50 --
+  [step  1550  epoch  30  t= 338.3s  vram=446MiB]  total=0.04127  L1_range=0.01232  L1_intensity=0.02024  BCE_validity=0.00871  KL=5.19011  
+  -- end of epoch 31/50 --
+  [step  1600  epoch  31  t= 349.2s  vram=446MiB]  total=0.04168  L1_range=0.01284  L1_intensity=0.01830  BCE_validity=0.01053  KL=5.23939  
+  -- end of epoch 32/50 --
+  [step  1650  epoch  32  t= 360.1s  vram=446MiB]  total=0.03906  L1_range=0.01496  L1_intensity=0.01950  BCE_validity=0.00459  KL=5.31929  
+  -- end of epoch 33/50 --
+  [step  1700  epoch  33  t= 371.0s  vram=446MiB]  total=0.03594  L1_range=0.01528  L1_intensity=0.01722  BCE_validity=0.00342  KL=5.29246  
+  -- end of epoch 34/50 --
+  [step  1750  epoch  34  t= 381.9s  vram=446MiB]  total=0.04072  L1_range=0.01582  L1_intensity=0.01950  BCE_validity=0.00541  KL=5.36111  
+  -- end of epoch 35/50 --
+  [step  1800  epoch  35  t= 392.8s  vram=446MiB]  total=0.04171  L1_range=0.01385  L1_intensity=0.02142  BCE_validity=0.00643  KL=5.34497  
+  -- end of epoch 36/50 --
+  [step  1850  epoch  36  t= 403.8s  vram=446MiB]  total=0.04203  L1_range=0.01479  L1_intensity=0.02146  BCE_validity=0.00577  KL=5.42268  
+  -- end of epoch 37/50 --
+  [step  1900  epoch  37  t= 414.7s  vram=446MiB]  total=0.03968  L1_range=0.01552  L1_intensity=0.01781  BCE_validity=0.00633  KL=5.29920  
+  -- end of epoch 38/50 --
+  [step  1950  epoch  38  t= 425.6s  vram=446MiB]  total=0.05671  L1_range=0.02049  L1_intensity=0.02592  BCE_validity=0.01030  KL=5.18298  
+  -- end of epoch 39/50 --
+  [step  2000  epoch  39  t= 436.5s  vram=446MiB]  total=0.15556  L1_range=0.03535  L1_intensity=0.04330  BCE_validity=0.07692  KL=4.12904  
+  -- end of epoch 40/50 --
+  [step  2050  epoch  40  t= 447.4s  vram=446MiB]  total=4.55507  L1_range=0.15501  L1_intensity=0.13749  BCE_validity=4.26258  KL=3.25428  
+  -- end of epoch 41/50 --
+  [step  2100  epoch  41  t= 458.3s  vram=446MiB]  total=1.48993  L1_range=0.15704  L1_intensity=0.12740  BCE_validity=1.20548  KL=3.17862  
+  -- end of epoch 42/50 --
+  [step  2150  epoch  42  t= 469.2s  vram=446MiB]  total=0.93695  L1_range=0.13197  L1_intensity=0.12192  BCE_validity=0.68306  KL=3.02728  
+  -- end of epoch 43/50 --
+  [step  2200  epoch  43  t= 480.1s  vram=446MiB]  total=0.83570  L1_range=0.15141  L1_intensity=0.12722  BCE_validity=0.55707  KL=2.86499  
+  -- end of epoch 44/50 --
+  [step  2250  epoch  44  t= 491.0s  vram=446MiB]  total=0.91116  L1_range=0.17811  L1_intensity=0.13933  BCE_validity=0.59372  KL=3.11267  
+  -- end of epoch 45/50 --
+  [step  2300  epoch  45  t= 501.9s  vram=446MiB]  total=0.81069  L1_range=0.16581  L1_intensity=0.13130  BCE_validity=0.51358  KL=2.96796  
+  -- end of epoch 46/50 --
+  [step  2350  epoch  46  t= 512.8s  vram=446MiB]  total=0.82587  L1_range=0.16443  L1_intensity=0.14114  BCE_validity=0.52029  KL=2.90967  
+  -- end of epoch 47/50 --
+  [step  2400  epoch  47  t= 523.7s  vram=446MiB]  total=0.87604  L1_range=0.17154  L1_intensity=0.14846  BCE_validity=0.55603  KL=3.19858  
+  -- end of epoch 48/50 --
+  [step  2450  epoch  48  t= 534.6s  vram=446MiB]  total=0.82780  L1_range=0.16105  L1_intensity=0.15086  BCE_validity=0.51590  KL=3.05990  
+  -- end of epoch 49/50 --
+  [step  2500  epoch  49  t= 545.5s  vram=446MiB]  total=0.87340  L1_range=0.18491  L1_intensity=0.13419  BCE_validity=0.55430  KL=3.36551  
+  -- end of epoch 50/50 --
+
+Final: step=2513, total_time=548.2s
+Checkpoint saved: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+  final losses: total=0.88106  L1_range=0.18819  L1_intensity=0.12965  BCE_validity=0.56321  KL=3.28384

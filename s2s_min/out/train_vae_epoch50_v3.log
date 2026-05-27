@@ -1,0 +1,129 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 2 x 4 = effective 8
+  lr / weight_decay       : 0.0004 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=4e-06)
+  loss weights            : range=50.0  intensity=1.0  validity=1.0  kl=1e-06
+  EMA decay               : 0.999
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_ema.pt
+    best (EMA, lowest L1_range-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_best.pt
+  dataset size            : 401 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+  total optimizer steps   : 2500  (decay window = 2300 after warmup)
+  [step     1  epoch   0  t=   0.6s  vram=430MiB  lr=2.00e-06]  l1r_ema=0.40672  total=21.47921  L1_range=0.40672  L1_intensity=0.45030  BCE_validity=0.69315  KL=0.11638  
+  [step    50  epoch   0  t=  11.4s  vram=446MiB  lr=1.00e-04]  l1r_ema=0.38998  total=17.08241  L1_range=0.32248  L1_intensity=0.36246  BCE_validity=0.59571  KL=0.56736  
+  -- end of epoch 1/50 --  l1_range_ema=0.38998  best_so_far=0.38998
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:139: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
+  [step   100  epoch   1  t=  23.0s  vram=446MiB  lr=2.00e-04]  l1r_ema=0.33347  total=9.87626  L1_range=0.18467  L1_intensity=0.22359  BCE_validity=0.41930  KL=0.78069  
+  -- end of epoch 2/50 --  l1_range_ema=0.33347  best_so_far=0.33347
+  [step   150  epoch   2  t=  34.5s  vram=446MiB  lr=3.00e-04]  l1r_ema=0.23828  total=2.52223  L1_range=0.04198  L1_intensity=0.10449  BCE_validity=0.31895  KL=1.28035  
+  -- end of epoch 3/50 --  l1_range_ema=0.23828  best_so_far=0.23828
+  [step   200  epoch   3  t=  46.0s  vram=446MiB  lr=4.00e-04]  l1r_ema=0.15533  total=1.81341  L1_range=0.02586  L1_intensity=0.08444  BCE_validity=0.43601  KL=1.96296  
+  -- end of epoch 4/50 --  l1_range_ema=0.15399  best_so_far=0.15399
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:152: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+  [step   250  epoch   4  t=  57.5s  vram=446MiB  lr=4.00e-04]  l1r_ema=0.10175  total=1.24367  L1_range=0.01713  L1_intensity=0.08109  BCE_validity=0.30590  KL=2.35420  
+  -- end of epoch 5/50 --  l1_range_ema=0.10092  best_so_far=0.10092
+  [step   300  epoch   5  t=  69.0s  vram=446MiB  lr=3.98e-04]  l1r_ema=0.06861  total=1.00289  L1_range=0.01393  L1_intensity=0.04611  BCE_validity=0.26007  KL=2.63752  
+  -- end of epoch 6/50 --  l1_range_ema=0.06805  best_so_far=0.06805
+  [step   350  epoch   6  t=  80.6s  vram=446MiB  lr=3.96e-04]  l1r_ema=0.04767  total=1.09342  L1_range=0.01453  L1_intensity=0.04489  BCE_validity=0.32199  KL=2.78956  
+  -- end of epoch 7/50 --  l1_range_ema=0.04734  best_so_far=0.04734
+  [step   400  epoch   7  t=  92.1s  vram=446MiB  lr=3.93e-04]  l1r_ema=0.03503  total=1.14412  L1_range=0.01696  L1_intensity=0.05879  BCE_validity=0.23749  KL=3.02256  
+  -- end of epoch 8/50 --  l1_range_ema=0.03464  best_so_far=0.03464
+  [step   450  epoch   8  t= 103.7s  vram=446MiB  lr=3.89e-04]  l1r_ema=0.02698  total=0.87545  L1_range=0.01156  L1_intensity=0.04375  BCE_validity=0.25357  KL=3.11455  
+  -- end of epoch 9/50 --  l1_range_ema=0.02669  best_so_far=0.02669
+  [step   500  epoch   9  t= 115.2s  vram=446MiB  lr=3.84e-04]  l1r_ema=0.02151  total=0.81271  L1_range=0.01102  L1_intensity=0.03724  BCE_validity=0.22455  KL=3.18223  
+  -- end of epoch 10/50 --  l1_range_ema=0.02138  best_so_far=0.02138
+  [step   550  epoch  10  t= 126.8s  vram=446MiB  lr=3.78e-04]  l1r_ema=0.01813  total=1.00248  L1_range=0.01369  L1_intensity=0.07798  BCE_validity=0.23986  KL=3.39843  
+  -- end of epoch 11/50 --  l1_range_ema=0.01802  best_so_far=0.01802
+  [step   600  epoch  11  t= 138.3s  vram=446MiB  lr=3.71e-04]  l1r_ema=0.01586  total=0.86076  L1_range=0.01178  L1_intensity=0.06332  BCE_validity=0.20835  KL=3.49431  
+  -- end of epoch 12/50 --  l1_range_ema=0.01576  best_so_far=0.01576
+  [step   650  epoch  12  t= 149.8s  vram=446MiB  lr=3.64e-04]  l1r_ema=0.01472  total=0.78365  L1_range=0.01076  L1_intensity=0.03919  BCE_validity=0.20659  KL=3.45941  
+  -- end of epoch 13/50 --  l1_range_ema=0.01461  best_so_far=0.01461
+  [step   700  epoch  13  t= 161.3s  vram=446MiB  lr=3.56e-04]  l1r_ema=0.01348  total=0.69360  L1_range=0.00904  L1_intensity=0.03672  BCE_validity=0.20499  KL=3.78053  
+  -- end of epoch 14/50 --  l1_range_ema=0.01341  best_so_far=0.01341
+  [step   750  epoch  14  t= 172.8s  vram=446MiB  lr=3.47e-04]  l1r_ema=0.01234  total=0.77890  L1_range=0.01130  L1_intensity=0.03351  BCE_validity=0.18030  KL=3.80358  
+  -- end of epoch 15/50 --  l1_range_ema=0.01234  best_so_far=0.01232
+  [step   800  epoch  15  t= 184.1s  vram=446MiB  lr=3.37e-04]  l1r_ema=0.01203  total=0.92175  L1_range=0.01255  L1_intensity=0.06915  BCE_validity=0.22511  KL=3.90088  
+  -- end of epoch 16/50 --  l1_range_ema=0.01202  best_so_far=0.01198
+  [step   850  epoch  16  t= 195.5s  vram=446MiB  lr=3.27e-04]  l1r_ema=0.01139  total=0.58559  L1_range=0.00781  L1_intensity=0.04201  BCE_validity=0.15291  KL=3.85497  
+  -- end of epoch 17/50 --  l1_range_ema=0.01138  best_so_far=0.01136
+  [step   900  epoch  17  t= 206.7s  vram=446MiB  lr=3.16e-04]  l1r_ema=0.01228  total=1.22943  L1_range=0.01874  L1_intensity=0.03443  BCE_validity=0.25814  KL=3.76915  
+  -- end of epoch 18/50 --  l1_range_ema=0.01241  best_so_far=0.01116
+  [step   950  epoch  18  t= 217.8s  vram=446MiB  lr=3.05e-04]  l1r_ema=0.01482  total=1.79377  L1_range=0.02494  L1_intensity=0.07715  BCE_validity=0.46967  KL=3.75620  
+  -- end of epoch 19/50 --  l1_range_ema=0.01526  best_so_far=0.01116
+  [step  1000  epoch  19  t= 228.8s  vram=446MiB  lr=2.93e-04]  l1r_ema=0.01770  total=1.25929  L1_range=0.01681  L1_intensity=0.04520  BCE_validity=0.37382  KL=3.76213  
+  -- end of epoch 20/50 --  l1_range_ema=0.01784  best_so_far=0.01116
+  [step  1050  epoch  20  t= 239.9s  vram=446MiB  lr=2.81e-04]  l1r_ema=0.02588  total=7.17131  L1_range=0.12973  L1_intensity=0.18444  BCE_validity=0.50049  KL=3.51508  
+  -- end of epoch 21/50 --  l1_range_ema=0.03168  best_so_far=0.01116
+  [step  1100  epoch  21  t= 251.0s  vram=446MiB  lr=2.68e-04]  l1r_ema=0.08235  total=8.14889  L1_range=0.14820  L1_intensity=0.20479  BCE_validity=0.53417  KL=3.41565  
+  -- end of epoch 22/50 --  l1_range_ema=0.08587  best_so_far=0.01116
+  [step  1150  epoch  22  t= 262.1s  vram=446MiB  lr=2.55e-04]  l1r_ema=0.10883  total=7.82105  L1_range=0.14155  L1_intensity=0.21662  BCE_validity=0.52691  KL=3.42030  
+  -- end of epoch 23/50 --  l1_range_ema=0.11015  best_so_far=0.01116
+  [step  1200  epoch  23  t= 273.2s  vram=446MiB  lr=2.42e-04]  l1r_ema=0.11870  total=6.76096  L1_range=0.12091  L1_intensity=0.20489  BCE_validity=0.51046  KL=3.41620  
+  -- end of epoch 24/50 --  l1_range_ema=0.11931  best_so_far=0.01116
+  [step  1250  epoch  24  t= 284.3s  vram=446MiB  lr=2.29e-04]  l1r_ema=0.12042  total=7.28436  L1_range=0.13056  L1_intensity=0.21607  BCE_validity=0.54039  KL=3.44316  
+  -- end of epoch 25/50 --  l1_range_ema=0.12061  best_so_far=0.01116
+  [step  1300  epoch  25  t= 295.3s  vram=446MiB  lr=2.16e-04]  l1r_ema=0.11854  total=6.52705  L1_range=0.11607  L1_intensity=0.20360  BCE_validity=0.51975  KL=3.42557  
+  -- end of epoch 26/50 --  l1_range_ema=0.11806  best_so_far=0.01116
+  [step  1350  epoch  26  t= 306.4s  vram=446MiB  lr=2.02e-04]  l1r_ema=0.11274  total=5.25965  L1_range=0.09085  L1_intensity=0.17771  BCE_validity=0.53921  KL=3.39291  
+  -- end of epoch 27/50 --  l1_range_ema=0.11200  best_so_far=0.01116
+  [step  1400  epoch  27  t= 317.5s  vram=446MiB  lr=1.88e-04]  l1r_ema=0.10497  total=4.64208  L1_range=0.07840  L1_intensity=0.17152  BCE_validity=0.55037  KL=3.38963  
+  -- end of epoch 28/50 --  l1_range_ema=0.10368  best_so_far=0.01116
+  [step  1450  epoch  28  t= 328.6s  vram=446MiB  lr=1.75e-04]  l1r_ema=0.09570  total=5.13027  L1_range=0.08873  L1_intensity=0.18235  BCE_validity=0.51130  KL=3.42912  
+  -- end of epoch 29/50 --  l1_range_ema=0.09614  best_so_far=0.01116
+  [step  1500  epoch  29  t= 339.7s  vram=446MiB  lr=1.62e-04]  l1r_ema=0.10216  total=3.99797  L1_range=0.06563  L1_intensity=0.12645  BCE_validity=0.59002  KL=3.40887  
+  -- end of epoch 30/50 --  l1_range_ema=0.09958  best_so_far=0.01116
+  [step  1550  epoch  30  t= 350.7s  vram=446MiB  lr=1.49e-04]  l1r_ema=0.08530  total=3.14002  L1_range=0.04978  L1_intensity=0.12906  BCE_validity=0.52209  KL=3.43069  
+  -- end of epoch 31/50 --  l1_range_ema=0.08317  best_so_far=0.01116
+  [step  1600  epoch  31  t= 361.8s  vram=446MiB  lr=1.36e-04]  l1r_ema=0.07468  total=3.00048  L1_range=0.04783  L1_intensity=0.09679  BCE_validity=0.51236  KL=3.43036  
+  -- end of epoch 32/50 --  l1_range_ema=0.07317  best_so_far=0.01116
+  [step  1650  epoch  32  t= 372.9s  vram=446MiB  lr=1.23e-04]  l1r_ema=0.08326  total=4.12075  L1_range=0.07027  L1_intensity=0.15278  BCE_validity=0.45444  KL=3.51328  
+  -- end of epoch 33/50 --  l1_range_ema=0.08242  best_so_far=0.01116
+  [step  1700  epoch  33  t= 384.0s  vram=446MiB  lr=1.11e-04]  l1r_ema=0.08068  total=4.67300  L1_range=0.07940  L1_intensity=0.16869  BCE_validity=0.53431  KL=3.33051  
+  -- end of epoch 34/50 --  l1_range_ema=0.08075  best_so_far=0.01116
+  [step  1750  epoch  34  t= 395.1s  vram=446MiB  lr=9.91e-05]  l1r_ema=0.07891  total=4.06124  L1_range=0.06763  L1_intensity=0.17515  BCE_validity=0.50454  KL=3.40961  
+  -- end of epoch 35/50 --  l1_range_ema=0.07868  best_so_far=0.01116
+  [step  1800  epoch  35  t= 406.2s  vram=446MiB  lr=8.78e-05]  l1r_ema=0.07634  total=3.80905  L1_range=0.06256  L1_intensity=0.16511  BCE_validity=0.51579  KL=3.37774  
+  -- end of epoch 36/50 --  l1_range_ema=0.07593  best_so_far=0.01116
+  [step  1850  epoch  36  t= 417.3s  vram=446MiB  lr=7.70e-05]  l1r_ema=0.07437  total=3.99695  L1_range=0.06680  L1_intensity=0.15484  BCE_validity=0.50225  KL=3.43637  
+  -- end of epoch 37/50 --  l1_range_ema=0.07425  best_so_far=0.01116
+  [step  1900  epoch  37  t= 428.4s  vram=446MiB  lr=6.69e-05]  l1r_ema=0.07358  total=4.67880  L1_range=0.08008  L1_intensity=0.13670  BCE_validity=0.53829  KL=3.33597  
+  -- end of epoch 38/50 --  l1_range_ema=0.07276  best_so_far=0.01116
+  [step  1950  epoch  38  t= 439.4s  vram=446MiB  lr=5.73e-05]  l1r_ema=0.07171  total=4.93464  L1_range=0.08589  L1_intensity=0.15593  BCE_validity=0.48421  KL=3.37934  
+  -- end of epoch 39/50 --  l1_range_ema=0.07188  best_so_far=0.01116
+  [step  2000  epoch  39  t= 450.5s  vram=446MiB  lr=4.84e-05]  l1r_ema=0.07093  total=4.46734  L1_range=0.07603  L1_intensity=0.14081  BCE_validity=0.52490  KL=3.36578  
+  -- end of epoch 40/50 --  l1_range_ema=0.07053  best_so_far=0.01116
+  [step  2050  epoch  40  t= 461.6s  vram=446MiB  lr=4.02e-05]  l1r_ema=0.07009  total=4.69255  L1_range=0.08149  L1_intensity=0.13803  BCE_validity=0.47978  KL=3.37523  
+  -- end of epoch 41/50 --  l1_range_ema=0.06965  best_so_far=0.01116
+  [step  2100  epoch  41  t= 472.7s  vram=446MiB  lr=3.28e-05]  l1r_ema=0.06889  total=4.36510  L1_range=0.07459  L1_intensity=0.14769  BCE_validity=0.48801  KL=3.37182  
+  -- end of epoch 42/50 --  l1_range_ema=0.06885  best_so_far=0.01116
+  [step  2150  epoch  42  t= 483.7s  vram=446MiB  lr=2.62e-05]  l1r_ema=0.06812  total=3.98134  L1_range=0.06683  L1_intensity=0.14925  BCE_validity=0.49063  KL=3.34641  
+  -- end of epoch 43/50 --  l1_range_ema=0.06791  best_so_far=0.01116
+  [step  2200  epoch  43  t= 494.8s  vram=446MiB  lr=2.04e-05]  l1r_ema=0.06721  total=4.59186  L1_range=0.07842  L1_intensity=0.13572  BCE_validity=0.53517  KL=3.31449  
+  -- end of epoch 44/50 --  l1_range_ema=0.06733  best_so_far=0.01116
+  [step  2250  epoch  44  t= 505.9s  vram=446MiB  lr=1.54e-05]  l1r_ema=0.06785  total=4.48972  L1_range=0.07700  L1_intensity=0.14679  BCE_validity=0.49287  KL=3.35377  
+  -- end of epoch 45/50 --  l1_range_ema=0.06768  best_so_far=0.01116
+  [step  2300  epoch  45  t= 517.0s  vram=446MiB  lr=1.13e-05]  l1r_ema=0.06726  total=3.88973  L1_range=0.06487  L1_intensity=0.14561  BCE_validity=0.50084  KL=3.31992  
+  -- end of epoch 46/50 --  l1_range_ema=0.06738  best_so_far=0.01116
+  [step  2350  epoch  46  t= 528.1s  vram=446MiB  lr=8.14e-06]  l1r_ema=0.06692  total=3.99647  L1_range=0.06650  L1_intensity=0.13475  BCE_validity=0.53654  KL=3.33095  
+  -- end of epoch 47/50 --  l1_range_ema=0.06703  best_so_far=0.01116
+  [step  2400  epoch  47  t= 539.2s  vram=446MiB  lr=5.84e-06]  l1r_ema=0.06732  total=3.99010  L1_range=0.06726  L1_intensity=0.14657  BCE_validity=0.48058  KL=3.37909  
+  -- end of epoch 48/50 --  l1_range_ema=0.06724  best_so_far=0.01116
+  [step  2450  epoch  48  t= 550.3s  vram=446MiB  lr=4.46e-06]  l1r_ema=0.06662  total=3.73144  L1_range=0.06201  L1_intensity=0.14252  BCE_validity=0.48849  KL=3.36233  
+  -- end of epoch 49/50 --  l1_range_ema=0.06668  best_so_far=0.01116
+  [step  2500  epoch  49  t= 561.3s  vram=446MiB  lr=4.00e-06]  l1r_ema=0.06597  total=3.56550  L1_range=0.05838  L1_intensity=0.16077  BCE_validity=0.48585  KL=3.44405  
+  -- end of epoch 50/50 --  l1_range_ema=0.06598  best_so_far=0.01116
+
+Final: step=2513, total_time=564.1s
+  live ckpt   : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt
+  EMA ckpt    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_ema.pt
+  best EMA    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae_best.pt  (l1_range_ema=0.01116)
+  final losses: total=4.24691  L1_range=0.07220  L1_intensity=0.16367  BCE_validity=0.47325  KL=3.39670
+  final l1_range_ema: 0.06604

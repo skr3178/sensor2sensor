@@ -328,6 +328,10 @@ Append a short `s2s_min/RESULTS.md` containing:
 | Full-resolution image KV in cross-attn | Pooled `(32,56)→(8,64)` KV | VRAM bound |
 | Range clamp 150 m (Waymo) | 100 m (nuScenes 32-beam) | Sensor max range |
 | ~250 M params, 128 TPU | ~30 M params, 1× RTX 3060 | Hardware reality |
+| **Image VAE: CAT3D-family** (paper ref [10]), 8-channel latent | **SD 1.5 VAE** (`runwayml/stable-diffusion-v1-5`), 4-channel latent | CAT3D VAE not released standalone; SD 1.5 is one `from_pretrained` line; image latent is dim-projected by cross-attn anyway, so the channel count gap washes out |
+| **LiDAR VAE: 16-dim latent** (paper §B.2) | **8-channel latent** at `[8, 8, 256]` | Smaller latent → smaller U-Net → fits 3060; trade fidelity for hardware |
+| **3 LiDAR channels: range + intensity + validity** | (same as paper minus elongation) | nuScenes `.pcd.bin` ships `(x,y,z,intensity,ring_index)` — no elongation channel. Paper uses Waymo, which has elongation. Restore if porting to Waymo. |
+| Range image **resolution unspecified** | **32 × 1024** | nuScenes 32-beam → 32 rows; 1024 cols ≈ 0.35°/azimuth bin (X-Drive default) |
 
 This is what gets read before any real training run is launched.
 
