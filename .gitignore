@@ -1,19 +1,16 @@
 # Local dataset symlink (huge nuScenes data, not for the repo)
 /nuscenes
 
-# Nested git history from the X-Drive reference repo
-Reference_code/X-Drive/.git/
-Reference_code/X-Drive/.git_backup_for_upload/
+# Waymo Open Dataset sample (~586 MB) — kept locally only
+s2s_min/data/waymo_sample/
 
-# Large third-party libs vendored into X-Drive (xformers ~92 MB)
-Reference_code/X-Drive/third_party/xformers/
+# Claude Code local state
+/.claude/
 
-# Large binary demo tensors (~44 MB)
-Reference_code/X-Drive/demo/data/*.pth
+# MVDream local clone (kept locally, not pushed)
+Reference_code/MVDream/
 
-# Broken / external symlinks inside X-Drive
-Reference_code/X-Drive/outputs
-Reference_code/X-Drive/pretrained
+# Reference_code/X-Drive is a git submodule (yichen928/X-Drive)
 
 # Python
 __pycache__/

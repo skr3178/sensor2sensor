@@ -38,6 +38,50 @@ Quantitative quality is **not** in scope. The deliverable is a known-good implem
 
 ---
 
+## Scope options
+
+Three scope levels were considered. They differ in how much of the paper's attention machinery is faithfully reproduced vs. simplified for the 12 GB 3060 budget. **(A) is the committed scope** for the minimum pipeline; (B) is the natural follow-on; (C) is out of reach on this hardware.
+
+### (A) Single CAM_FRONT input, one-way cross-attention — **COMMITTED**
+
+- **Input:** single `CAM_FRONT` image as dashcam stand-in (256×448).
+- **Output:** LiDAR range image → point cloud only. No multi-view image generation.
+- **Denoiser backbone:** **single LiDAR U-Net** (3 encoder levels @ channels `[96, 192, 384]` + bottleneck + 3 decoder levels, W-only downsample, circular conv on W). No image-side U-Net. ~30 M params.
+- **Attention blocks (inside the U-Net):** Self-Attn (within LiDAR), one-way `CrossAttention` (Q=LiDAR tokens, KV=pre-pooled image+raymap context). **No cross-view attn**, **no paper-faithful cross-sensor attn** (the paper's flatten-concat-self-attn formulation is replaced by SD-style distinct-projection cross-attn).
+- **Trainable params:** ~30 M U-Net + ~10 M LiDAR VAE.
+- **Est. VRAM in M3:** ~5 GB.
+- **Pros:** smallest implementation surface (one camera in the loader, no view-fusion logic), comfortably fits the 3060, fastest path to a working end-to-end run.
+- **Cons:** divergence from paper on the cross-sensor formulation (one-way vs. symmetric); cross-view attn is absent entirely (not exercised at all). Documented in the M5 deviations table.
+
+### (B) 6-camera input + paper-faithful cross-sensor self-attn, LiDAR-only output — **deferred follow-on after M3 passes**
+
+- **Input:** all 6 nuScenes surround cameras (CAM_FRONT, CAM_FRONT_LEFT, CAM_FRONT_RIGHT, CAM_BACK, CAM_BACK_LEFT, CAM_BACK_RIGHT).
+- **Output:** LiDAR range image → point cloud only. **Still no image generation.**
+- **Denoiser backbone:** **same single LiDAR U-Net as (A)**, same topology and channel counts. No image-side U-Net (still no image generation). Only the attention blocks inside change.
+- **Attention blocks (inside the U-Net):** Self-Attn within LiDAR; an **input-side cross-view fusion** that flattens the 6 encoded camera latents together and runs shared-projection self-attention so the 6 views can interact (paper's flatten-concat-selfattn-split pattern, applied to inputs); **paper-faithful cross-sensor attn** as a single self-attention over `[image_tokens; lidar_tokens]` with shared QKV projection. The "updated" image half of the output is discarded since we don't generate images.
+- **What this unlocks vs (A):** the paper's exact *cross-sensor attn formula* (shared-proj self-attn over a combined modality stream); the paper's exact *flatten-concat-selfattn-split shape* for view fusion (applied to inputs, not generated outputs).
+- **What this still skips vs the paper:** no image-generation tower → no cross-view attn between *generated* views (the actual Figure-3 blue box). The paper's cross-view attn lives in the image-generation tower and operates on tokens being denoised; we have no such tower.
+- **Engineering delta vs (A):** data loader returns 6 RGB tensors instead of 1; M2 caches 6× more image latents (~5 GB cached vs ~1 GB); `CrossAttention` swapped for `CrossSensorSelfAttn` (one extra module, ~80 LOC); add `CrossViewFusion` block on the input side (~50 LOC). Roughly 1 day of work on top of (A).
+- **Est. VRAM in M3:** ~7–8 GB. Tight but tractable on 3060 with fp16 + grad-checkpoint + v-prediction.
+- **Pros:** faithful to two of the paper's three attention blocks; better 360° conditioning signal since back/side cameras anchor unobserved regions.
+- **Cons:** doubles the debug surface vs (A) — if something breaks in M3, harder to triage between the new attention block, the multi-view loader, and the underlying pipeline; SD VAE encoder pass is 6× more expensive (mitigated by latent caching in M2).
+
+### (C) Full paper-faithful — dual-tower with 8 generated views — **out of scope for the 3060**
+
+- **Input:** single dashcam-stand-in image conditioned as 9th view.
+- **Output:** 8 generated camera views **plus** generated LiDAR.
+- **Denoiser backbone:** **two parallel U-Nets** — an image-side U-Net tower (~30 M params) operating on 8 view latents simultaneously **and** a LiDAR-side U-Net tower (~30 M params). The two towers exchange information every block via cross-sensor attn.
+- **Attention blocks (inside the U-Nets):** Self-Attn, **Cross-view Attn** (between the 8 generated views in the image tower — the actual paper formulation), **Cross-sensor Attn** (bidirectional between image tower and LiDAR tower).
+- **Trainable params:** ~60 M (dual-tower) + 10 M LiDAR VAE + Image VAE decoder.
+- **Est. VRAM in M3:** ~12–15 GB at batch 1 even with fp16 + gradient checkpointing.
+- **Verdict:** likely OOM on the 12 GB 3060. The image-generation tower is the dominant memory consumer; this is exactly the path [implementation.md](implementation.md) rules out for v1. Re-evaluate only if an A100 (or 24 GB+) GPU is rented.
+
+### Decision
+
+The minimum pipeline executes (A). Once M3 passes on (A), revisit whether to extend to (B) as a follow-on — at that point the data loader, LiDAR VAE, U-Net skeleton, and training loop are all proven, so the only delta is the multi-view input + the swapped attention block. (C) is **not** on the roadmap for this hardware.
+
+---
+
 ## Architecture (minimum spec)
 
 ```
@@ -74,7 +118,7 @@ LiDAR range image [C=4, H=32, W=1024] ─▶ [LiDAR VAE encoder, 4× spatial dow
 (inference) DDIM 25 steps ─▶ ẑ_lidar ─▶ [LiDAR VAE decoder] ─▶ range image ─▶ point cloud
 ```
 
-**What is in:** LiDAR VAE, single conditional U-Net, cross-attention to image features, raymap, range-image LiDAR (4-channel), DDIM sampler, frozen SD 1.5 image VAE encoder.
+**What is in:** LiDAR VAE, single conditional U-Net, cross-attention to image features, raymap, range-image LiDAR (3-channel: range + intensity + validity — no elongation, since nuScenes LiDAR doesn't ship that signal), DDIM sampler, frozen SD 1.5 image VAE encoder.
 
 **What is out (deferred from `implementation.md`):** multi-view image generation, image U-Net tower, cross-view attention, image VAE decoder, temporal/previous-frame conditioning, DAgger, autoregressive rollout, 4DGS data synthesis, real dashcam input.
 
@@ -189,7 +233,7 @@ s2s_min/
 | Concern | Source | Action |
 |---|---|---|
 | nuScenes loading + sync of CAM_FRONT / LIDAR_TOP | `nuscenes-devkit` directly, against local `/media/skr/storage/self_driving/S2GO/data/nuscenes/` (`v1.0-trainval`) | **Write thin loader from scratch** (~50 LOC). X-Drive's `nuscenes_dataset.py` depends on mmdet3d + pre-generated `.pkl` info files, which is not worth the install pain for a 10-scene subset. Use `NuScenes(version='v1.0-trainval', dataroot=...)` and walk `sample.json` to pair `CAM_FRONT` ↔ `LIDAR_TOP` keyframes. |
-| Range-image conversion | `Reference_code/X-Drive/xdrive/dataset/pipeline.py` line 830 `point_cloud_to_range_image` | **Borrow** the class directly. **Override** X-Drive's normalization (`mean=[50,0], std=[50,255]` per [`Nuscenes_lidar_rangeldm.yaml:17`](Reference_code/X-Drive/configs/dataset/Nuscenes_lidar_rangeldm.yaml#L17)) — use the paper's linear-to-[0,1] mapping with range clamp 100 m, intensity & elongation clipped to their natural ranges. Verify with a round-trip test: `range_img → point_cloud → range_img` should be near-identity on a held-out sample. |
+| Range-image conversion | `Reference_code/X-Drive/xdrive/dataset/pipeline.py` line 830 `point_cloud_to_range_image` | **Borrow** the class directly. **Override** X-Drive's normalization (`mean=[50,0], std=[50,255]` per [`Nuscenes_lidar_rangeldm.yaml:17`](Reference_code/X-Drive/configs/dataset/Nuscenes_lidar_rangeldm.yaml#L17)) — use the paper's linear-to-[0,1] mapping with range clamp 100 m and intensity divided by 255. **Drop elongation** (nuScenes LiDAR doesn't ship it); output 3 channels (range, intensity, validity). Verify with a round-trip test: `range_img → point_cloud → range_img` should be near-identity on a held-out sample. |
 | LiDAR VAE | X-Drive `xdrive/networks/blocks_pc_RangeLDM.py` is RangeLDM-style | **Write from scratch** following paper Eq. (1)–(4)+(6)+(7), but verify channel-count choices against X-Drive's `SDv2.1pc_RangeLDM_box.yaml`. |
 | U-Net + cross-attn + circular conv | X-Drive `xdrive/networks/unet_pc_condition_RangeLDM.py`, `circular_modules.py` | **Write from scratch** (smaller). Reference X-Drive's `circular_modules.py` for the circular-padding pattern on the azimuth axis. |
 | Diffusion training loop, DDIM sampler | none of X-Drive's runners are clean enough | **Write from scratch** using `diffusers.schedulers.DDPMScheduler` + `DDIMScheduler` (HuggingFace `diffusers`). |
@@ -227,10 +271,10 @@ Goal: `train/smoke_test.py` runs without error on one sample.
 
 Goal: VAE reconstructs nuScenes LiDAR cleanly enough to be a useful target space.
 
-- **Initial loss (5 terms): `L1_range + L1_intensity + L1_elongation + BCE_validity + KL`.** LPIPS terms are deferred — computing LPIPS-on-normals requires finite-difference normal estimation from the predicted range channel, which is fiddly around invalid returns, and LPIPS-VGG adds ~250 MB VRAM and ~30 % wall-clock per VAE step. Add `LPIPS_normals` and `LPIPS_intensity` back **only if** the 5-term VAE produces visibly blurry reconstructions in M1's eyeball-BEV check.
+- **Initial loss (4 terms): `L1_range + L1_intensity + BCE_validity + KL`** (elongation dropped — nuScenes LiDAR has no such channel). LPIPS terms are deferred — computing LPIPS-on-normals requires finite-difference normal estimation from the predicted range channel, which is fiddly around invalid returns, and LPIPS-VGG adds ~250 MB VRAM and ~30 % wall-clock per VAE step. Add `LPIPS_normals` and `LPIPS_intensity` back **only if** the 4-term VAE produces visibly blurry reconstructions in M1's eyeball-BEV check.
 - Equations: paper (1), (3), (4), (7) for the 5-term variant — see [equations.md](/media/skr/storage/self_driving/sensor2sensor/equations.md). Add (6) only when LPIPS terms are re-introduced.
 - Loss weights start at `1.0` except `λ_KL = 1e-6` (X-Drive value).
-- Range clamp 100 m (nuScenes; smaller than the paper's 150 m for Waymo); intensity & elongation linearly mapped to [0,1].
+- Range clamp 100 m (nuScenes; smaller than the paper's 150 m for Waymo); intensity linearly mapped to [0,1] by dividing by 255.
 - **Overfit milestone:** 10 samples to <0.05 mean L1 on range within ~500 steps. Save the checkpoint.
 - **Epoch milestone:** one full pass over the ~400 mini samples. Save final checkpoint, freeze.
 - **Pass criterion:** decoded range image looks like the input range image (eyeball BEV).
