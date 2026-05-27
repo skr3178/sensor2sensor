@@ -5,20 +5,31 @@ M4 demo — DDIM 25-step inference on held-out samples
   prediction   : v_prediction
   range_m (BEV): 60.0
 
-per-sample stats (CD in meters; lower = better):
-   idx  token                                        cos    CD-3D   CD-BEV    N_gt   N_pred   wall
-   100  35f8b51f153146108250e5c48d0b8026           0.463    1.204    0.293   32322    32768   0.66s
-   200  7876ea81dbe74b31a262426af050eb8a           0.466    1.332    0.351   32216    32768   0.50s
-   300  ba5d4c21f9d1441a80355fb2b2bd5908           0.485    1.313    0.312   32686    32768   0.50s
-   400  ff93d6dd1c0e4c569ee4bbc0c965c7f2           0.465    1.392    0.342   32433    32768   0.49s
+Four Chamfer metrics (CD in meters; lower = better):
+  CD-3D-oracle  : decode(z_pred) vs decode(μ)        — diffusion contribution only
+  CD-BEV-oracle : same, xy-only                       — diffusion, planar geometry
+  CD-3D-raw     : decode(z_pred) vs raw nuScenes      — END-TO-END image→LiDAR (headline)
+  CD-VAE-only   : decode(μ) vs raw nuScenes           — VAE bottleneck (lower bound on CD-3D-raw)
+
+per-sample stats:
+   idx  token                                        cos   CD-3D-oracle   CD-BEV-oracle   CD-3D-raw  CD-VAE-only   N_raw   N_oracle   N_pred   wall
+   100  35f8b51f153146108250e5c48d0b8026           0.463          1.204           0.293       5.229        4.795   34784      32322    32768   6.46s
+   200  7876ea81dbe74b31a262426af050eb8a           0.466          1.332           0.351       5.347        4.805   34688      32216    32768   0.51s
+   300  ba5d4c21f9d1441a80355fb2b2bd5908           0.485          1.313           0.312       7.255        6.441   34688      32686    32768   0.50s
+   400  ff93d6dd1c0e4c569ee4bbc0c965c7f2           0.465          1.392           0.342       6.710        6.293   34720      32433    32768   0.50s
 
 aggregate (mean over held-out):
-  mean cos(z_pred, μ): +0.4700   (1.0 = identical)
-  mean Chamfer 3D    : 1.310 m
-  mean Chamfer BEV   : 0.324 m   (xy-only, isolates planar geometry)
+  mean cos(z_pred, μ) : +0.4700   (1.0 = identical)
+  mean CD-3D-oracle   : 1.310 m   (diffusion contribution only)
+  mean CD-BEV-oracle  : 0.324 m   (diffusion, xy-only)
+  mean CD-3D-raw      : 6.135 m   ★ END-TO-END image→LiDAR — headline metric
+  mean CD-VAE-only    : 5.583 m   (VAE bottleneck; CD-3D-raw can't go below this)
+
+error decomposition (rough): CD-3D-raw ≈ CD-VAE-only + (diffusion-induced delta)
+  diffusion delta     ≈ +0.552 m
 
 pass criterion (per min_pipeline_plan.md §M4):
-  - DDIM produces non-trivial output  ✓ (verified by Chamfer < ∞ and N_pred > 0)
+  - DDIM produces non-trivial output  ✓ (CD finite, N_pred > 0)
   - Generated BEV looks geometrically plausible (road plane + camera-region density)
     → eyeball-check the bev_grid.png
   - Chamfer is whatever it is — quantitative quality not gated

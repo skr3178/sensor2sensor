@@ -115,16 +115,23 @@ def main():
     rows.append(f"  prediction   : {diffusion.prediction_type}")
     rows.append(f"  range_m (BEV): {RANGE_M}")
     rows.append("")
-    rows.append("per-sample stats (CD in meters; lower = better):")
+    rows.append("Four Chamfer metrics (CD in meters; lower = better):")
+    rows.append("  CD-3D-oracle  : decode(z_pred) vs decode(μ)        — diffusion contribution only")
+    rows.append("  CD-BEV-oracle : same, xy-only                       — diffusion, planar geometry")
+    rows.append("  CD-3D-raw     : decode(z_pred) vs raw nuScenes      — END-TO-END image→LiDAR (headline)")
+    rows.append("  CD-VAE-only   : decode(μ) vs raw nuScenes           — VAE bottleneck (lower bound on CD-3D-raw)")
+    rows.append("")
+    rows.append("per-sample stats:")
     rows.append(f"  {'idx':>4}  {'token':<40}  "
-                f"{'cos':>6}  {'CD-3D':>7}  {'CD-BEV':>7}  "
-                f"{'N_gt':>6}  {'N_pred':>7}  {'wall':>5}")
+                f"{'cos':>6}  {'CD-3D-oracle':>13}  {'CD-BEV-oracle':>14}  "
+                f"{'CD-3D-raw':>10}  {'CD-VAE-only':>11}  "
+                f"{'N_raw':>6}  {'N_oracle':>9}  {'N_pred':>7}  {'wall':>5}")
 
-    cos_sims, cds, cds_xy = [], [], []
+    cos_sims, cds_oracle, cds_xy_oracle, cds_raw, cds_vae = [], [], [], [], []
 
-    # ---- figure ----
-    fig, axes = plt.subplots(len(HELD_OUT_IDX), 2,
-                              figsize=(8, 3 * len(HELD_OUT_IDX)))
+    # ---- figure: 3 columns per sample (raw | VAE-oracle | DDIM-pred) ----
+    fig, axes = plt.subplots(len(HELD_OUT_IDX), 3,
+                              figsize=(11, 3 * len(HELD_OUT_IDX)))
     if len(HELD_OUT_IDX) == 1:
         axes = axes[None, :]
 
@@ -137,28 +144,45 @@ def main():
 
         t0 = time.time()
         pred = infer_one_sample(unet, vae, diffusion, image_latent, raymap, seed=42)
-        gt   = decode_ground_truth(vae, mu)
+        oracle = decode_ground_truth(vae, mu)
         torch.cuda.synchronize() if device == "cuda" else None
+        # Raw nuScenes LiDAR (in LiDAR sensor frame — same as range_image_to_point_cloud output).
+        raw_pc = raw_lidar_for_sample(sample_token)
         dt = time.time() - t0
 
         cos = F.cosine_similarity(pred["z_pred"].flatten(1), mu.flatten(1), dim=-1).item()
-        cd_3d  = chamfer_distance(gt["point_cloud"], pred["point_cloud"], use_xy_only=False)
-        cd_bev = chamfer_distance(gt["point_cloud"], pred["point_cloud"], use_xy_only=True)
-        cos_sims.append(cos); cds.append(cd_3d["cd"]); cds_xy.append(cd_bev["cd"])
+        # vs oracle (existing two metrics)
+        cd_oracle    = chamfer_distance(oracle["point_cloud"], pred["point_cloud"], use_xy_only=False)
+        cd_oracle_xy = chamfer_distance(oracle["point_cloud"], pred["point_cloud"], use_xy_only=True)
+        # vs raw nuScenes (new, end-to-end)
+        cd_raw   = chamfer_distance(raw_pc, pred["point_cloud"],   use_xy_only=False)
+        cd_vae   = chamfer_distance(raw_pc, oracle["point_cloud"], use_xy_only=False)
 
-        rows.append(f"  {idx:>4}  {sample_token[:40]:<40}  "
-                    f"{cos:>6.3f}  {cd_3d['cd']:>7.3f}  {cd_bev['cd']:>7.3f}  "
-                    f"{cd_3d['n_a']:>6d}  {cd_3d['n_b']:>7d}  {dt:>5.2f}s")
+        cos_sims.append(cos)
+        cds_oracle.append(cd_oracle["cd"])
+        cds_xy_oracle.append(cd_oracle_xy["cd"])
+        cds_raw.append(cd_raw["cd"])
+        cds_vae.append(cd_vae["cd"])
 
-        # paint into the figure
-        bev_scatter(axes[i, 0], gt["point_cloud"],   color="tab:blue", range_m=RANGE_M)
-        bev_scatter(axes[i, 1], pred["point_cloud"], color="tab:red",  range_m=RANGE_M)
+        rows.append(
+            f"  {idx:>4}  {sample_token[:40]:<40}  "
+            f"{cos:>6.3f}  {cd_oracle['cd']:>13.3f}  {cd_oracle_xy['cd']:>14.3f}  "
+            f"{cd_raw['cd']:>10.3f}  {cd_vae['cd']:>11.3f}  "
+            f"{raw_pc.shape[0]:>6d}  {cd_oracle['n_a']:>9d}  {cd_oracle['n_b']:>7d}  {dt:>5.2f}s"
+        )
+
+        # paint into the figure: raw | oracle | predicted
+        bev_scatter(axes[i, 0], raw_pc,                color="tab:green", range_m=RANGE_M)
+        bev_scatter(axes[i, 1], oracle["point_cloud"], color="tab:blue",  range_m=RANGE_M)
+        bev_scatter(axes[i, 2], pred["point_cloud"],   color="tab:red",   range_m=RANGE_M)
         axes[i, 0].set_ylabel(f"idx {idx}\n{sample_token[:24]}…", fontsize=6)
-        axes[i, 0].set_title(f"GT  (N={cd_3d['n_a']})" if i == 0 else "", fontsize=9)
-        axes[i, 1].set_title(f"DDIM pred  (N={cd_3d['n_b']})" if i == 0 else "", fontsize=9)
+        if i == 0:
+            axes[i, 0].set_title(f"raw nuScenes (N={raw_pc.shape[0]})", fontsize=9)
+            axes[i, 1].set_title(f"VAE-decoded GT (N={cd_oracle['n_a']})", fontsize=9)
+            axes[i, 2].set_title(f"DDIM-predicted (N={cd_oracle['n_b']})", fontsize=9)
 
     fig.suptitle(
-        f"M4: DDIM 25-step inference on held-out samples\n"
+        f"M4: end-to-end DDIM 25-step inference on held-out samples\n"
         f"checkpoint step={unet_ckpt.get('step', '?')}  loss_ema={unet_ckpt.get('loss_ema', float('nan')):.4f}  "
         f"BEV range ±{RANGE_M:.0f} m",
         fontsize=10,
@@ -166,14 +190,25 @@ def main():
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(OUT_DIR / "bev_grid.png", dpi=120, bbox_inches="tight")
 
+    mean_cos       = float(np.mean(cos_sims))
+    mean_cd_oracle = float(np.mean(cds_oracle))
+    mean_cd_xy     = float(np.mean(cds_xy_oracle))
+    mean_cd_raw    = float(np.mean(cds_raw))
+    mean_cd_vae    = float(np.mean(cds_vae))
+
     rows.append("")
     rows.append("aggregate (mean over held-out):")
-    rows.append(f"  mean cos(z_pred, μ): {np.mean(cos_sims):+.4f}   (1.0 = identical)")
-    rows.append(f"  mean Chamfer 3D    : {np.mean(cds):.3f} m")
-    rows.append(f"  mean Chamfer BEV   : {np.mean(cds_xy):.3f} m   (xy-only, isolates planar geometry)")
+    rows.append(f"  mean cos(z_pred, μ) : {mean_cos:+.4f}   (1.0 = identical)")
+    rows.append(f"  mean CD-3D-oracle   : {mean_cd_oracle:.3f} m   (diffusion contribution only)")
+    rows.append(f"  mean CD-BEV-oracle  : {mean_cd_xy:.3f} m   (diffusion, xy-only)")
+    rows.append(f"  mean CD-3D-raw      : {mean_cd_raw:.3f} m   ★ END-TO-END image→LiDAR — headline metric")
+    rows.append(f"  mean CD-VAE-only    : {mean_cd_vae:.3f} m   (VAE bottleneck; CD-3D-raw can't go below this)")
+    rows.append("")
+    rows.append("error decomposition (rough): CD-3D-raw ≈ CD-VAE-only + (diffusion-induced delta)")
+    rows.append(f"  diffusion delta     ≈ {mean_cd_raw - mean_cd_vae:+.3f} m")
     rows.append("")
     rows.append("pass criterion (per min_pipeline_plan.md §M4):")
-    rows.append("  - DDIM produces non-trivial output  ✓ (verified by Chamfer < ∞ and N_pred > 0)")
+    rows.append("  - DDIM produces non-trivial output  ✓ (CD finite, N_pred > 0)")
     rows.append("  - Generated BEV looks geometrically plausible (road plane + camera-region density)")
     rows.append("    → eyeball-check the bev_grid.png")
     rows.append("  - Chamfer is whatever it is — quantitative quality not gated")

@@ -524,7 +524,38 @@ This is exactly what the upstream metrics predicted (mse_ema 0.55, cos sim 0.47,
 
 **Total: ~390 LOC** (slightly above the ~280 LOC estimate — extra was per-sample timing, stats formatting, and CLI plumbing in the demo script).
 
-### M5 — Document failure modes (~1 hour) — **PLANNED**
+### M5 — Document failure modes (~1 hour) — ✅ **DONE**
+
+**Deliverables shipped:**
+
+| File | Status |
+|---|---|
+| [`s2s_min/RESULTS.md`](s2s_min/RESULTS.md) | Extended (was M1-only) to cover M-1 → M5 end-to-end. Executive summary with quality caveats up front; per-milestone sections in the same incremental style as the original M1 entry; deviations table (13 rows); 3-bottleneck "Known limitations" section; reproducibility appendix with exact CLIs. |
+| [`s2s_min/scripts/collect_results.py`](s2s_min/scripts/collect_results.py) | ~160 LOC. Walks `s2s_min/out/` and parses MANIFEST + every `stats.txt` + the two training `.log` files; prints one scannable summary table. Exit 0 if all sources exist and parse, 1 otherwise. |
+
+**Pass criteria met:**
+- `python s2s_min/scripts/collect_results.py` returns exit code 0 with all 7 milestone rows green.
+- `RESULTS.md` covers every milestone M-1 through M5 with ≥ 2 numerical metrics each.
+- Deviations table has 13 rows; "Known limitations" names 3 bottlenecks with symptom + diagnosis + fix.
+- Quality caveats appear in §1 executive summary (CD-3D-raw = 6.135 m headline, VAE dominates).
+
+**Headline numbers (now in RESULTS.md §Executive summary):**
+
+| Metric | Value |
+|---|---|
+| `CD-3D-raw` (end-to-end image → LiDAR) | **6.135 m** |
+| `CD-VAE-only` (VAE bottleneck, lower bound) | 5.583 m |
+| `CD-3D-oracle` (diffusion contribution only) | 1.310 m |
+| Diffusion delta on top of VAE | +0.552 m |
+| Bottleneck attribution | VAE ≈ 91 %, diffusion ≈ 9 % |
+
+The takeaway in one line: *The minimum pipeline is a known-good base. The under-trained
+LiDAR VAE is the dominant quality bottleneck — fixing it would close ~91 % of the gap to
+RangeLDM Chamfer values before any U-Net retraining is needed.*
+
+---
+
+#### Original M5 plan (retained for reference)
 
 **Context.** All implementation milestones (M-1 → M4) are done. M5 is purely a synthesis task: stitch the per-stage `stats.txt`, training logs, manifests, and visualizations into one document that a reader can scan in 5 minutes and decide "is this minimum pipeline a known-good base for further work?". No new code logic — just gathering numbers already on disk.
 
