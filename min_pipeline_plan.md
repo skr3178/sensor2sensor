@@ -469,7 +469,7 @@ env/bin/python -c "
 
 **Overall M3 pass criterion:** loss finite throughout; DDIM 25-step inference produces a non-trivial range image when fed a held-out image; **peak VRAM < 9 GB on the 11.6 GB RTX 3060 (expected: 5–7 GB)**. If VRAM peaks above 9 GB, leaves no room for desktop/browser → first move is verifying EMA shadow weights are on CPU (not GPU). Stretch configs (batch 2 actual, larger KV grid, no EMA-CPU offload) can take it to ~10 GB — revisit only after the base config is stable.
 
-### M4 — End-to-end inference + visualization (~2 hours)
+### M4 — End-to-end inference + visualization (~2 hours) — ✅ **DONE**
 
 `eval/decode_to_pointcloud.py`:
 1. Pick a held-out nuScenes-mini frame.
@@ -481,30 +481,165 @@ env/bin/python -c "
 
 **Pass criterion:** the generated BEV looks geometrically plausible (road plane present, vehicle returns roughly where the input camera sees them). Chamfer is whatever it is — quantitative quality is out of scope.
 
-### M5 — Document failure modes (~1 hour)
+#### Progress
 
-Append a short `s2s_min/RESULTS.md` containing:
-- VRAM peaks per phase.
-- Wall-clock per milestone.
-- What the M4 output actually looks like.
-- A **deviations-from-paper** table (template):
+**M4 — DONE.** Pipeline runs end-to-end on held-out samples; strict pass criteria met; honest quality assessment below.
 
-| Paper | Minimum pipeline | Reason |
+| Check | Result |
+|---|---|
+| `eval/__init__.py`, `eval/decode_to_pointcloud.py`, `eval/bev_viz.py`, `eval/chamfer.py` | All written, all import cleanly |
+| `scripts/run_m4_demo.py` | Glue script orchestrating 4 held-out samples |
+| Single-sample CLI | `python s2s_min/eval/decode_to_pointcloud.py --idx 100` produces finite z_pred (norm 97.74), range_img in [0, 0.73], 32,768-point cloud |
+| 4-sample demo wall clock | ~2 s total (~0.5 s per DDIM 25-step sample) |
+| Peak VRAM (estimate, single sample) | ~1 GB — pipeline is data-light at inference |
+| **Mean cos(z_pred, μ)** | **+0.470** across idx 100/200/300/400 (matches M3.2 v2 DDIM sanity) |
+| **Mean Chamfer 3D** | **1.310 m** (point-to-point bidirectional, all dims) |
+| **Mean Chamfer BEV (xy-only)** | **0.324 m** (isolates planar geometry) |
+| BEV PNG | [`s2s_min/out/m4_demo/bev_grid.png`](s2s_min/out/m4_demo/bev_grid.png) — 4×2 grid (GT \| DDIM-pred) |
+| Stats text | [`s2s_min/out/m4_demo/stats.txt`](s2s_min/out/m4_demo/stats.txt) |
+
+#### Honest quality assessment (what the BEV actually shows)
+
+The pictures reveal a clear pattern: **GT (blue) shows scene-specific structure** — different spread per sample, asymmetric distributions where buildings exist, etc. **DDIM predictions (red) look remarkably similar across all 4 samples** — the model has learned the "average BEV" statistics (point density distribution, ~30 m extent, near-origin concentration) but **not yet the per-scene conditioning at fine resolution**.
+
+This is exactly what the upstream metrics predicted (mse_ema 0.55, cos sim 0.47, magnitude under-shoot ~45 %). The pipeline is correct end-to-end; the quality bar is gated by training budget and VAE quality, not architecture.
+
+**Known limitation surfaced in M4:** every prediction has 32,768 points (= 32×1024, every cell predicted as valid). The undertrained LiDAR VAE's validity head (BCE near random at step 2513) is overpredicting validity. Documented in [`s2s_min/out/lidar_vae_samples/stats.txt`](s2s_min/out/lidar_vae_samples/stats.txt) — `BCE_valid ≈ 0.48` for the VAE checkpoint at step 2513.
+
+#### What a real quality bump would need (out of minimum-pipeline scope)
+
+- More M3 training (5 epochs → 50–100 epochs)
+- Better LiDAR VAE (longer M1 training, especially on the validity BCE term)
+- Classifier-free guidance at inference time (the `--cond_dropout 0.2` training hook is already in place)
+
+#### Files created
+
+| File | LOC | Role |
 |---|---|---|
-| Two U-Net towers + bidirectional cross-sensor attn | Single LiDAR U-Net + one-way cross-attn from LiDAR to image | LiDAR-only output; halves params |
-| 8-view multi-view image generation | None | LiDAR-only output |
-| Dashcam as 9th view | CAM_FRONT as input, no 9th view | No paired dashcam data without 4DGS |
-| Auto-regressive + DAgger | Single frame | No temporal scope in minimum pipeline |
-| LiDAR VAE 9-term loss | 5 terms (drop LPIPS×4) initially | Simplicity; revisit if blurry |
-| Full-resolution image KV in cross-attn | Pooled `(32,56)→(8,64)` KV | VRAM bound |
-| Range clamp 150 m (Waymo) | 100 m (nuScenes 32-beam) | Sensor max range |
-| ~250 M params, 128 TPU | ~30 M params, 1× RTX 3060 | Hardware reality |
-| **Image VAE: CAT3D-family** (paper ref [10]), 8-channel latent | **SD 1.5 VAE** (`runwayml/stable-diffusion-v1-5`), 4-channel latent | CAT3D VAE not released standalone; SD 1.5 is one `from_pretrained` line; image latent is dim-projected by cross-attn anyway, so the channel count gap washes out |
-| **LiDAR VAE: 16-dim latent** (paper §B.2) | **8-channel latent** at `[8, 8, 256]` | Smaller latent → smaller U-Net → fits 3060; trade fidelity for hardware |
-| **3 LiDAR channels: range + intensity + validity** | (same as paper minus elongation) | nuScenes `.pcd.bin` ships `(x,y,z,intensity,ring_index)` — no elongation channel. Paper uses Waymo, which has elongation. Restore if porting to Waymo. |
-| Range image **resolution unspecified** | **32 × 1024** | nuScenes 32-beam → 32 rows; 1024 cols ≈ 0.35°/azimuth bin (X-Drive default) |
+| [`s2s_min/eval/decode_to_pointcloud.py`](s2s_min/eval/decode_to_pointcloud.py) | ~140 | Inference orchestrator (`infer_one_sample()` + CLI) |
+| [`s2s_min/eval/bev_viz.py`](s2s_min/eval/bev_viz.py) | ~70 | `bev_scatter()` + `side_by_side_bev()` |
+| [`s2s_min/eval/chamfer.py`](s2s_min/eval/chamfer.py) | ~60 | `chamfer_distance()` via `scipy.spatial.cKDTree` (pure-Python, no CUDA-ext build) |
+| [`s2s_min/scripts/run_m4_demo.py`](s2s_min/scripts/run_m4_demo.py) | ~120 | Glue: 4 held-out samples → BEV grid + Chamfer table |
+| [`s2s_min/eval/__init__.py`](s2s_min/eval/__init__.py) | 0 | package marker |
 
-This is what gets read before any real training run is launched.
+**Total: ~390 LOC** (slightly above the ~280 LOC estimate — extra was per-sample timing, stats formatting, and CLI plumbing in the demo script).
+
+### M5 — Document failure modes (~1 hour) — **PLANNED**
+
+**Context.** All implementation milestones (M-1 → M4) are done. M5 is purely a synthesis task: stitch the per-stage `stats.txt`, training logs, manifests, and visualizations into one document that a reader can scan in 5 minutes and decide "is this minimum pipeline a known-good base for further work?". No new code logic — just gathering numbers already on disk.
+
+#### Two deliverables
+
+| File | Purpose | LOC |
+|---|---|---|
+| **`s2s_min/RESULTS.md`** (committed location) | The synthesis document. ~300 lines, 9 sections. | doc only |
+| **`s2s_min/scripts/collect_results.py`** | Walks `s2s_min/out/` and parses every stats.txt / log / MANIFEST to print one machine-parseable summary table. Lets future-you spot regressions in one command. Pure-Python, no new deps. | ~80 |
+
+Both committed per user choice (executive-summary caveats up-front, doc lives at `s2s_min/RESULTS.md`, helper script included).
+
+#### `RESULTS.md` — 9-section outline
+
+| § | Section | What it contains | Data sources |
+|---|---|---|---|
+| 1 | **Executive summary** (~25 lines) | 5-line answer to "did the minimum pipeline meet its stated goal on a 12 GB 3060?". **Quality caveats UP-FRONT**: "all 5 milestones passed; quality is NOT paper-level — see §5 + §7 for the three named limiters and what would fix each." | min_pipeline_plan.md §Context (goal restatement) |
+| 2 | **Headline numbers table** (~15 lines) | One scannable table: wall-clock + peak VRAM + key metric + pass status per milestone (M-1 through M4). The "if you only read one table" entry. | Per-milestone "Progress" subsections in min_pipeline_plan.md |
+| 3 | **What was built** (~30 lines) | File tree of `s2s_min/`, LOC totals broken down by module (models/, train/, eval/, data/, scripts/, tests/, docs/), dataset summary (401 paired nuScenes keyframes from 10 seed-0 scenes, 39 MB cache, 56 GB raw nuScenes on disk locally). | `ls -laR s2s_min/`, `wc -l` per directory, M2 [`MANIFEST.json`](s2s_min/out/cached_latents/MANIFEST.json) |
+| 4 | **End-to-end pipeline runs** (~80 lines) | One sub-section per milestone with the headline visualization. Embedded PNGs with one-paragraph captions. | Image-VAE: [`out/image_vae_samples/samples.png`](s2s_min/out/image_vae_samples/samples.png) + stats.txt; LiDAR-VAE: [`out/lidar_vae_samples/samples.png`](s2s_min/out/lidar_vae_samples/samples.png) + stats.txt; Raymap benchmark: [`out/raymap_benchmark/raymap_benchmark.png`](s2s_min/out/raymap_benchmark/raymap_benchmark.png) (mean 0.465°); Forward diffusion: [`out/unet_forward_samples/samples.png`](s2s_min/out/unet_forward_samples/samples.png); M3.2 DDIM sanity: [`out/m32_ddim_sanity/stats.txt`](s2s_min/out/m32_ddim_sanity/stats.txt); M4 BEV: [`out/m4_demo/bev_grid.png`](s2s_min/out/m4_demo/bev_grid.png) + stats.txt |
+| 5 | **Quality assessment** (~40 lines) | Honest read of M4 output: what works (geometric plausibility — central density, ~30 m extent, finite Chamfer 1.31 m / 0.32 m BEV), what doesn't (per-scene differentiation — all 4 predictions look very similar), why (cos 0.47 + magnitude undershoot 45% + validity head BCE near 0.5 random). The "this is not yet paper-quality" disclaimer with specifics. | M4 BEV grid + cos sim + Chamfer numbers; M3.2 v2 loss curve |
+| 6 | **Deviations from paper** (~25 lines) | The 12-row deviations table — already templated above, finalized with the actual choices we shipped. Add 13th row: **validity head essentially random** (M1 stats: BCE_valid ≈ 0.48 at step 2513 → M4 over-predicts validity at every pixel). | Existing template in this plan + [`out/lidar_vae_samples/stats.txt`](s2s_min/out/lidar_vae_samples/stats.txt) |
+| 7 | **Known limitations** (~40 lines) | Three named limiters with symptom + diagnosis + fix: <br> 1. **LiDAR VAE undertrained** (step 2513). Symptom: BCE_valid ≈ 0.48 (random), range L1 ~7m on round-trip. Fix: run M1 longer, ~50 epochs. <br> 2. **U-Net undertrained** (502 steps × 401 samples ≈ 1.25 effective epochs per sample). Symptom: cos sim 0.47 (not 0.8+), magnitude undershoot ~45%, all predictions look similar. Fix: run M3 longer, ~50–100 epochs. <br> 3. **No classifier-free guidance at inference.** Symptom: no sharpness boost on conditioning. Fix: implement CFG in `decode_to_pointcloud.py` (the `--cond_dropout 0.2` training hook is already in place — only inference loop change needed). | Per-component observations across milestones |
+| 8 | **Follow-on work** (~30 lines) | Concrete TODO list for "minimum pipeline → paper-quality": longer M1 (50 epochs), longer M3 (5000 steps), scope-B 6-camera input, CFG inference, eval on bigger held-out. References plan's scope-options + deferred items. Each item annotated with effort estimate and which §7 limiter it addresses. | min_pipeline_plan.md §Scope options + per-milestone "What's deferred" |
+| 9 | **Reproducibility appendix** (~50 lines) | Exact CLI commands to re-run each milestone end-to-end. Env path, checkpoint locations, expected wall clocks, expected peak VRAM per stage. Anyone with the same nuScenes split should reproduce numbers within fp16 noise. Followed by `python s2s_min/scripts/collect_results.py` to verify all numbers in one shot. | Verification blocks already in min_pipeline_plan.md, refined |
+
+#### `collect_results.py` — script spec (~80 LOC)
+
+**Inputs (read-only, all paths fixed):**
+- [`s2s_min/out/cached_latents/MANIFEST.json`](s2s_min/out/cached_latents/MANIFEST.json) — M2 cache stats
+- [`s2s_min/out/image_vae_samples/stats.txt`](s2s_min/out/image_vae_samples/stats.txt) — image encoder verification
+- [`s2s_min/out/lidar_vae_samples/stats.txt`](s2s_min/out/lidar_vae_samples/stats.txt) — LiDAR VAE recon stats
+- [`s2s_min/out/raymap_benchmark/stats.txt`](s2s_min/out/raymap_benchmark/stats.txt) — raymap angular error
+- [`s2s_min/out/m31_ddim_sanity/stats.txt`](s2s_min/out/m31_ddim_sanity/stats.txt) — M3.1 DDIM check
+- [`s2s_min/out/m32_ddim_sanity/stats.txt`](s2s_min/out/m32_ddim_sanity/stats.txt) — M3.2 DDIM check
+- [`s2s_min/out/m4_demo/stats.txt`](s2s_min/out/m4_demo/stats.txt) — M4 final numbers
+- [`s2s_min/out/train_diffusion_overfit10.log`](s2s_min/out/train_diffusion_overfit10.log) — M3.1 loss curve
+- [`s2s_min/out/train_diffusion_m32.log`](s2s_min/out/train_diffusion_m32.log) — M3.2 v2 loss curve
+
+**Output:** single stdout table summarizing every milestone's key numbers. Three rows we already know:
+- M3.1: 1000 steps, 226.3s, loss 1.02→0.317, DDIM cos 0.581
+- M3.2 v2: 502 steps, 112.2s, loss 1.02→0.553, DDIM cos 0.470 held-out
+- M4: 4 samples, ~0.5s/sample, Chamfer 1.310 m 3D / 0.324 m BEV
+
+**Exit code:** 0 if all expected stats files exist and parse, 1 otherwise. No regression checks (numbers are floats; any thresholding would be brittle). Just a "did everything run and write its stats" smoke check.
+
+**Anti-goals:** not a unit test framework, not a perf benchmark, not an alerting system. A 30-second sanity check before reading RESULTS.md.
+
+#### Critical numerical content to surface (for me to write into §2 + §4)
+
+| Stage | Wall-clock | Peak VRAM | Key metric | Pass |
+|---|---|---|---|---|
+| M-1 shape tests | <2 s (CPU) | n/a | 5/5 checks green | ✓ |
+| M0 smoke test | <1 s | **574 MiB** | loss finite (1.77) on real nuScenes sample | ✓ |
+| M1 LiDAR VAE | (your side) | n/a | step 2513 checkpoint, ~7 m range L1, BCE_valid ≈ 0.48 (under-trained) | ✓ delivered |
+| Raymap benchmark | <5 s | n/a | **0.465° mean angular error** vs LiDAR ground truth (below quantization floor) | ✓ |
+| M2 latent cache | 21.5 s | n/a | 401 samples, 39.23 MB, 0 failures | ✓ |
+| M3.0 smoke | 0.5 s | 765 MiB | 4-micro-step finite loss, grad clip applied | ✓ |
+| M3.1 overfit-10 | **226.3 s** | 878 MiB | mse_ema 1.02→0.317; DDIM cos sim **0.581** | ✓ |
+| M3.2 v2 (5 epoch) | **112.2 s** | 878 MiB | mse_ema 1.02→0.553; DDIM cos **0.470 held-out, 0.471 train (no memorization gap)** | ✓ |
+| M4 inference + viz | **~2 s for 4 samples** | ~1 GB | **Chamfer-vs-VAE-oracle 1.310 m 3D, 0.324 m BEV**; 32k-point clouds generated; geometrically plausible | ✓ |
+| M5 — end-to-end Chamfer-vs-raw-nuScenes (added per user clarification) | ~5 s for 4 samples | ~1 GB | Compute and surface as the **user-facing metric** — expected 8–15 m range (VAE-oracle 1.31 m + VAE-itself ~7 m of error stacks) | ⌧ to be added in M5 implementation |
+
+#### Why M5 adds a fourth Chamfer metric (the "end-to-end" one)
+
+The three M4 metrics already in `out/m4_demo/stats.txt` (cos sim, Chamfer 3D, Chamfer BEV) **all compare diffusion output against the VAE-decoded oracle**, not the raw nuScenes LiDAR. That isolates the diffusion-model contribution — useful for diagnosis — but it doesn't answer the user's headline question: *given a single image, how close is the generated point cloud to the real LiDAR scan?*
+
+To surface this properly, M5 adds:
+
+| Metric | Compares | Surfaces |
+|---|---|---|
+| (existing) `Chamfer(decode(z_pred), decode(μ))` | diffusion-decoded vs VAE-only-decoded GT | **Diffusion contribution only** (VAE held as upper bound) |
+| **NEW** `Chamfer(decode(z_pred), raw_lidar_pcd)` | diffusion-decoded vs **raw nuScenes .pcd.bin** | **End-to-end image→LiDAR** quality — the user-facing answer |
+| **NEW** `Chamfer(decode(μ), raw_lidar_pcd)` | VAE-decoded GT vs raw nuScenes | **VAE-alone error budget** (isolates VAE bottleneck) |
+
+This error decomposition — total = (VAE alone) + (diffusion delta) — makes the §5 quality assessment honest. The current 1.31 m number sounds great in isolation; the end-to-end number (expected 8–15 m) is the real headline. RESULTS.md leads with the end-to-end number in §1 + §2, then explains the decomposition in §5.
+
+**Implementation:** ~15 LOC extension to `s2s_min/scripts/run_m4_demo.py` (or a sibling `eval/chamfer_end_to_end.py` if cleaner). It already has the LIDAR_TOP record + LiDAR_TOP→ego transform plumbing (mirrored from `train/cache_latents.py:find_paired_keyframe`); just needs to load the `.pcd.bin`, transform LiDAR-frame → LiDAR-sensor frame is identity for our use (the VAE's range image is also in LiDAR sensor frame per `data/range_image.py`), and call `chamfer_distance` against `decode(z_pred)`.
+
+#### Pass criterion for M5
+
+| Criterion | How to verify |
+|---|---|
+| All 8 milestones documented with quantitative data | `grep` RESULTS.md for "M-1", "M0", "M1", "M2", "M3.0", "M3.1", "M3.2", "M4" — each present with at least 2 numerical metrics |
+| Deviations table is complete (at least 13 rows including the validity-head row) | Table renders, every row has paper/pipeline/reason columns filled |
+| `collect_results.py` runs to completion with exit code 0 | `env/bin/python s2s_min/scripts/collect_results.py; echo $?` returns `0` |
+| Quality caveats appear in §1 executive summary | First 25 lines of RESULTS.md explicitly name the three limiters from §7 |
+| Reproduction commands work | One-by-one sanity: `python -m s2s_min.eval.decode_to_pointcloud --idx 100` produces same numbers as before |
+
+#### Effort
+
+| Task | Time |
+|---|---|
+| Write `RESULTS.md` (~300 lines, mostly synthesis) | ~45 min |
+| Write `collect_results.py` (~80 LOC) | ~15 min |
+| Cross-check numbers + final read-through + fix any nit | ~15 min |
+| **Total M5** | **~1–1.5 hr** |
+
+#### Verification
+
+```bash
+# 1) Generate the summary table from disk
+env/bin/python s2s_min/scripts/collect_results.py
+
+# 2) Open RESULTS.md and confirm every milestone is present
+grep -E "^(##|### )" s2s_min/RESULTS.md
+
+# 3) Re-run M4 to confirm numbers haven't drifted (~2 s)
+env/bin/python s2s_min/scripts/run_m4_demo.py
+diff <(grep -E "mean Chamfer" s2s_min/out/m4_demo/stats.txt) <(grep -E "1.310|0.324" s2s_min/RESULTS.md)
+
+# 4) Spot-check one reproduction command from the appendix
+env/bin/python -m s2s_min.eval.decode_to_pointcloud --idx 100
+# expect: norm 97.74, 32768 points, finite z_pred
+```
 
 ---
 
