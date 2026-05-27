@@ -1,0 +1,22 @@
+sample          : 20df43740cba4411a810e204501af71a
+N points        : 3046 (after in-frustum cull)
+latent grid     : 32x56  (latent pixel ≈ 1.29° wide, 1.27° tall)
+
+angular error stats (degrees):
+  mean   : 0.465
+  median : 0.483
+  p50   : 0.483
+  p75   : 0.594
+  p90   : 0.682
+  p95   : 0.741
+  p99   : 0.813
+  p100  : 0.863
+
+baseline (latent-cell quantization floor):
+  half-cell shift (~half a latent pixel): ≈ 0.65°
+  full-cell shift: ≈ 1.29°
+
+interpretation:
+  - mean << 1°  → raymap geometry is correct end-to-end
+  - mean ≈ 0.5°-2° → expected: errors are dominated by latent-grid quantization
+  - mean > 5°    → likely a frame-convention or scaling bug — investigate

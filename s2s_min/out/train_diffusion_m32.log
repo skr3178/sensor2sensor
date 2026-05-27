@@ -1,0 +1,54 @@
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:152: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+======================================================================
+M3: LiDAR DIFFUSION U-NET TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 1 x 4 = effective 4
+  lr / weight_decay       : 0.0001 / 0.0001
+  lr schedule             : cosine  (warmup=20 steps, lr_min=1e-06)
+  cond dropout            : 0.2  (per-sample CFG hook)
+  grad clip               : 1.0
+  EMA decay               : 0.999
+  checkpoints out         :
+    final (live)          : s2s_min/out/lidar_unet_m32.pt
+    final (EMA)           : s2s_min/out/lidar_unet_m32_ema.pt
+    best (EMA, lowest loss-EMA): s2s_min/out/lidar_unet_m32_best.pt
+  dataset size            : 401 cached samples (overfit_n=off)
+  U-Net params            : 14.81 M
+  diffusion               : v_prediction, T=1000, DDIM steps=25
+  total optimizer steps   : 500  (decay window = 480 after warmup)
+  [step     1  epoch   0  t=   0.5s  vram=765MiB  lr=5.00e-06]  mse_ema=1.02150  mse=1.02150  
+  [step    25  epoch   0  t=   5.3s  vram=878MiB  lr=1.00e-04]  mse_ema=1.10080  mse=0.93527  
+  [step    50  epoch   0  t=  10.3s  vram=878MiB  lr=9.90e-05]  mse_ema=1.04486  mse=0.64160  
+  [step    75  epoch   0  t=  16.6s  vram=878MiB  lr=9.68e-05]  mse_ema=0.95766  mse=1.05618  
+  [step   100  epoch   0  t=  22.9s  vram=878MiB  lr=9.34e-05]  mse_ema=0.88850  mse=0.79072  
+  -- end of epoch 1/5 --  mse_ema=0.88850  best_so_far=0.88823
+  [step   125  epoch   1  t=  28.9s  vram=878MiB  lr=8.88e-05]  mse_ema=0.81297  mse=0.38107  
+  [step   150  epoch   1  t=  34.9s  vram=878MiB  lr=8.31e-05]  mse_ema=0.76778  mse=0.76185  
+  [step   175  epoch   1  t=  40.7s  vram=878MiB  lr=7.66e-05]  mse_ema=0.74784  mse=0.97000  
+  [step   200  epoch   1  t=  46.4s  vram=878MiB  lr=6.94e-05]  mse_ema=0.71785  mse=0.25408  
+  -- end of epoch 2/5 --  mse_ema=0.71785  best_so_far=0.71785
+  [step   225  epoch   2  t=  52.1s  vram=878MiB  lr=6.17e-05]  mse_ema=0.68812  mse=0.38358  
+  [step   250  epoch   2  t=  57.7s  vram=878MiB  lr=5.37e-05]  mse_ema=0.66818  mse=0.71217  
+  [step   275  epoch   2  t=  63.2s  vram=878MiB  lr=4.56e-05]  mse_ema=0.64683  mse=0.79441  
+  [step   300  epoch   2  t=  68.4s  vram=878MiB  lr=3.77e-05]  mse_ema=0.63908  mse=0.35744  
+  -- end of epoch 3/5 --  mse_ema=0.63908  best_so_far=0.63856
+  [step   325  epoch   3  t=  73.8s  vram=878MiB  lr=3.01e-05]  mse_ema=0.63184  mse=0.99452  
+  [step   350  epoch   3  t=  79.1s  vram=878MiB  lr=2.30e-05]  mse_ema=0.62700  mse=0.25323  
+  [step   375  epoch   3  t=  84.5s  vram=878MiB  lr=1.67e-05]  mse_ema=0.60891  mse=0.33142  
+  [step   400  epoch   3  t=  89.7s  vram=878MiB  lr=1.12e-05]  mse_ema=0.60614  mse=0.29057  
+  -- end of epoch 4/5 --  mse_ema=0.60306  best_so_far=0.60306
+  [step   425  epoch   4  t=  95.4s  vram=878MiB  lr=6.84e-06]  mse_ema=0.59556  mse=0.88865  
+  [step   450  epoch   4  t= 100.6s  vram=878MiB  lr=3.63e-06]  mse_ema=0.57986  mse=0.34504  
+  [step   475  epoch   4  t= 106.2s  vram=878MiB  lr=1.66e-06]  mse_ema=0.56350  mse=0.27293  
+  [step   500  epoch   4  t= 111.7s  vram=878MiB  lr=1.00e-06]  mse_ema=0.55702  mse=0.32770  
+  -- end of epoch 5/5 --  mse_ema=0.55467  best_so_far=0.55397
+
+Final: step=502, total_time=112.2s
+  live ckpt   : s2s_min/out/lidar_unet_m32.pt
+  EMA ckpt    : s2s_min/out/lidar_unet_m32_ema.pt
+  best EMA    : s2s_min/out/lidar_unet_m32_best.pt  (loss_ema=0.55258)
+  final mse   : 0.34499
+  final mse_ema: 0.55258

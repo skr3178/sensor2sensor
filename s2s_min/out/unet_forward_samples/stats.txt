@@ -1,0 +1,12 @@
+sample: samples/LIDAR_TOP/n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.pcd.bin
+input range_img : (1, 3, 32, 1024)  range=[0.000, 1.000]
+LiDAR latent mu : (1, 8, 8, 256)  mean=+0.573  std=1.283
+U-Net params    : 14.81 M (untrained, zero-init head)
+
+Forward-diffusion corruption + fresh U-Net forward at increasing t:
+     t  noisy_lat_std   recon_range_L1  v_pred_max  v_target_std  mse(v_pred, v_target)
+     0        1.2834           0.1996    0.00e+00        0.0000                0.0000
+   200        1.2592           0.1996    0.00e+00        1.0364                1.1088
+   500        1.1053           0.1990    0.00e+00        1.1938                1.6420
+   800        1.0037           0.2041    0.00e+00        1.2773                1.9551
+   999        0.9938           0.2119    0.00e+00        1.2834                1.9757

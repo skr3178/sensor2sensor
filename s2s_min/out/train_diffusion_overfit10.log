@@ -1,0 +1,69 @@
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:152: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+======================================================================
+M3: LiDAR DIFFUSION U-NET TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 1 x 4 = effective 4
+  lr / weight_decay       : 0.0001 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=1e-06)
+  cond dropout            : 0.2  (per-sample CFG hook)
+  grad clip               : 1.0
+  EMA decay               : 0.999
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_ema.pt
+    best (EMA, lowest loss-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_best.pt
+  dataset size            : 10 cached samples (overfit_n=10)
+  U-Net params            : 14.81 M
+  diffusion               : v_prediction, T=1000, DDIM steps=25
+  total optimizer steps   : 1000  (decay window = 800 after warmup)
+  [step     1  epoch   0  t=   0.5s  vram=765MiB  lr=5.00e-07]  mse_ema=1.01912  mse=1.01912  
+  [step    25  epoch   9  t=   5.3s  vram=878MiB  lr=1.25e-05]  mse_ema=1.13714  mse=1.18450  
+  [step    50  epoch  19  t=  10.3s  vram=878MiB  lr=2.50e-05]  mse_ema=1.21169  mse=1.53164  
+  [step    75  epoch  29  t=  15.4s  vram=878MiB  lr=3.75e-05]  mse_ema=1.20920  mse=1.20576  
+  [step   100  epoch  39  t=  22.0s  vram=878MiB  lr=5.00e-05]  mse_ema=1.14689  mse=0.81547  
+  [step   125  epoch  49  t=  28.4s  vram=878MiB  lr=6.25e-05]  mse_ema=1.05596  mse=0.48878  
+  [step   150  epoch  59  t=  34.6s  vram=878MiB  lr=7.50e-05]  mse_ema=0.96894  mse=0.79370  
+  [step   175  epoch  69  t=  40.6s  vram=878MiB  lr=8.75e-05]  mse_ema=0.91431  mse=0.98228  
+  [step   200  epoch  79  t=  46.7s  vram=878MiB  lr=1.00e-04]  mse_ema=0.85387  mse=0.41795  
+  [step   225  epoch  89  t=  52.7s  vram=878MiB  lr=9.98e-05]  mse_ema=0.80013  mse=0.41247  
+  [step   250  epoch  99  t=  58.7s  vram=878MiB  lr=9.90e-05]  mse_ema=0.75998  mse=0.75524  
+  [step   275  epoch 109  t=  64.5s  vram=878MiB  lr=9.79e-05]  mse_ema=0.72109  mse=0.77163  
+  [step   300  epoch 119  t=  70.1s  vram=878MiB  lr=9.62e-05]  mse_ema=0.69782  mse=0.39110  
+  [step   325  epoch 129  t=  75.7s  vram=878MiB  lr=9.42e-05]  mse_ema=0.68049  mse=0.99495  
+  [step   350  epoch 139  t=  81.2s  vram=878MiB  lr=9.17e-05]  mse_ema=0.66669  mse=0.36109  
+  [step   375  epoch 149  t=  86.8s  vram=878MiB  lr=8.88e-05]  mse_ema=0.63776  mse=0.49428  
+  [step   400  epoch 159  t=  92.5s  vram=878MiB  lr=8.55e-05]  mse_ema=0.61995  mse=0.27889  
+  [step   425  epoch 169  t=  98.3s  vram=878MiB  lr=8.19e-05]  mse_ema=0.59623  mse=0.76128  
+  [step   450  epoch 179  t= 103.9s  vram=878MiB  lr=7.80e-05]  mse_ema=0.56648  mse=0.24330  
+  [step   475  epoch 189  t= 109.9s  vram=878MiB  lr=7.38e-05]  mse_ema=0.53379  mse=0.27214  
+  [step   500  epoch 199  t= 115.9s  vram=878MiB  lr=6.94e-05]  mse_ema=0.51048  mse=0.43338  
+  [step   525  epoch 209  t= 121.3s  vram=878MiB  lr=6.49e-05]  mse_ema=0.49840  mse=0.30132  
+  [step   550  epoch 219  t= 126.7s  vram=878MiB  lr=6.02e-05]  mse_ema=0.49263  mse=0.99561  
+  [step   575  epoch 229  t= 132.0s  vram=878MiB  lr=5.54e-05]  mse_ema=0.47799  mse=0.35162  
+  [step   600  epoch 239  t= 137.6s  vram=878MiB  lr=5.05e-05]  mse_ema=0.47022  mse=0.34775  
+  [step   625  epoch 249  t= 143.3s  vram=878MiB  lr=4.56e-05]  mse_ema=0.44755  mse=0.28969  
+  [step   650  epoch 259  t= 149.4s  vram=878MiB  lr=4.08e-05]  mse_ema=0.42083  mse=0.23689  
+  [step   675  epoch 269  t= 155.6s  vram=878MiB  lr=3.61e-05]  mse_ema=0.39870  mse=0.18082  
+  [step   700  epoch 279  t= 161.4s  vram=878MiB  lr=3.16e-05]  mse_ema=0.38323  mse=0.19685  
+  [step   725  epoch 289  t= 167.1s  vram=878MiB  lr=2.72e-05]  mse_ema=0.37082  mse=0.22333  
+  [step   750  epoch 299  t= 173.5s  vram=878MiB  lr=2.30e-05]  mse_ema=0.34769  mse=0.29004  
+  [step   775  epoch 309  t= 178.7s  vram=878MiB  lr=1.91e-05]  mse_ema=0.34527  mse=0.21589  
+  [step   800  epoch 319  t= 184.2s  vram=878MiB  lr=1.55e-05]  mse_ema=0.34289  mse=0.17049  
+  [step   825  epoch 329  t= 189.9s  vram=878MiB  lr=1.22e-05]  mse_ema=0.33011  mse=0.26075  
+  [step   850  epoch 339  t= 195.7s  vram=878MiB  lr=9.34e-06]  mse_ema=0.31937  mse=0.22298  
+  [step   875  epoch 349  t= 201.1s  vram=878MiB  lr=6.84e-06]  mse_ema=0.32000  mse=0.35380  
+  [step   900  epoch 359  t= 206.1s  vram=878MiB  lr=4.77e-06]  mse_ema=0.32204  mse=0.34653  
+  [step   925  epoch 369  t= 211.1s  vram=878MiB  lr=3.13e-06]  mse_ema=0.32044  mse=0.22204  
+  [step   950  epoch 379  t= 216.1s  vram=878MiB  lr=1.95e-06]  mse_ema=0.32131  mse=0.16588  
+  [step   975  epoch 389  t= 221.1s  vram=878MiB  lr=1.24e-06]  mse_ema=0.32810  mse=0.59846  
+  [step  1000  epoch 399  t= 226.2s  vram=878MiB  lr=1.00e-06]  mse_ema=0.31703  mse=0.16537  
+
+Final: step=1000, total_time=226.3s
+  live ckpt   : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet.pt
+  EMA ckpt    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_ema.pt
+  best EMA    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_best.pt  (loss_ema=0.31348)
+  final mse   : 0.16537
+  final mse_ema: 0.31703

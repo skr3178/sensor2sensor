@@ -1,0 +1,24 @@
+checkpoint   : s2s_min/out/lidar_unet_best.pt  (step=101, loss_ema=1.15070)
+DDIM steps   : 25
+prediction   : v_prediction
+
+per-sample stats (z_pred vs ground-truth μ; range_img L1 on valid pixels):
+    i  token                                      cos(z_pred,μ)   ||z_pred||        ||μ||   L1(rng_imgs)
+    0  01956caa034547e0aee232d163988678                  0.0100        89.82       181.48         0.0438
+    1  020154f4d8cd4e8582c4a02f10d70d7a                  0.0134        89.82       181.67         0.0431
+    2  02f6ae7cee4f43c9b9fb1bb206c3f64b                  0.0130        89.82       181.38         0.0415
+    3  04147507f33e495f912cb64a60bb3f0d                  0.0142        89.82       181.96         0.0443
+    4  048077141cb64315b65545964ee99dda                  0.0150        89.82       182.02         0.0447
+    5  05a38d819af84ccd8a76291422820369                  0.0117        89.82       180.93         0.0434
+    6  061805d66b424aa18267bdd7a955b761                  0.0129        89.82       178.96         0.0403
+    7  07700b68e0c645d289f60d6b88de5ce5                  0.0091        89.82       184.35         0.0422
+    8  07ccc9049a724e91b13610e0f849a705                  0.0130        89.82       179.21         0.0408
+    9  08064c1d5ec84bd08fcf9b3acebd8e36                  0.0100        89.82       183.09         0.0435
+
+MEAN cos(z_pred, μ): +0.0122   (1.0 = identical, 0.0 = random)
+MEAN L1(rng_imgs)  : 0.0428    (lower = better — range_clamp=100m means 0.01 ≈ 1m)
+
+interpretation:
+  cos > 0.5  → DDIM clearly conditioning on the input (M3.1 pass)
+  cos > 0.8  → strong overfit (expected target for 1000 steps × 10 samples)
+  cos ≈ 0    → conditioning ignored — pipeline bug

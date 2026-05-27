@@ -1,0 +1,38 @@
+======================================================================
+M3: LiDAR DIFFUSION U-NET TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 1 x 4 = effective 4
+  lr / weight_decay       : 0.0001 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=1e-06)
+  cond dropout            : 0.2  (per-sample CFG hook)
+  grad clip               : 1.0
+  EMA decay               : 0.999
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_ema.pt
+    best (EMA, lowest loss-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_best.pt
+  dataset size            : 401 cached samples (overfit_n=off)
+  U-Net params            : 14.81 M
+  diffusion               : v_prediction, T=1000, DDIM steps=25
+  total optimizer steps   : 100  (decay window = 1 after warmup)
+  [step     1  epoch   0  t=   0.5s  vram=765MiB  lr=5.00e-07]  mse_ema=1.02150  mse=1.02150  
+  [step    10  epoch   0  t=   2.3s  vram=878MiB  lr=5.00e-06]  mse_ema=1.07713  mse=1.76103  
+  [step    20  epoch   0  t=   4.3s  vram=878MiB  lr=1.00e-05]  mse_ema=1.11875  mse=2.00354  
+  [step    30  epoch   0  t=   6.3s  vram=878MiB  lr=1.50e-05]  mse_ema=1.16227  mse=1.79280  
+  [step    40  epoch   0  t=   8.3s  vram=878MiB  lr=2.00e-05]  mse_ema=1.19217  mse=1.74250  
+  [step    50  epoch   0  t=  10.4s  vram=878MiB  lr=2.50e-05]  mse_ema=1.21815  mse=1.61828  
+  [step    60  epoch   0  t=  12.3s  vram=878MiB  lr=3.00e-05]  mse_ema=1.22650  mse=1.31110  
+  [step    70  epoch   0  t=  14.3s  vram=878MiB  lr=3.50e-05]  mse_ema=1.22146  mse=1.01952  
+  [step    80  epoch   0  t=  16.9s  vram=878MiB  lr=4.00e-05]  mse_ema=1.20320  mse=0.93701  
+  [step    90  epoch   0  t=  19.5s  vram=878MiB  lr=4.50e-05]  mse_ema=1.17741  mse=0.80377  
+  [step   100  epoch   0  t=  22.1s  vram=878MiB  lr=5.00e-05]  mse_ema=1.15167  mse=0.81938  
+  -- end of epoch 1/1 --  mse_ema=1.15167  best_so_far=1.15167
+
+Final: step=101, total_time=22.3s
+  live ckpt   : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet.pt
+  EMA ckpt    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_ema.pt
+  best EMA    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_unet_best.pt  (loss_ema=1.15070)
+  final mse   : 1.05437
+  final mse_ema: 1.15070

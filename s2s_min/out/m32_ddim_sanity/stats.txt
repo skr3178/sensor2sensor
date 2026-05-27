@@ -1,0 +1,26 @@
+checkpoint   : s2s_min/out/lidar_unet_m32_best.pt  (step=502, loss_ema=0.55258)
+dataset size : 401 cached samples
+DDIM steps   : 25
+prediction   : v_prediction
+
+HELD-OUT samples (NOT in M3.1's overfit-10 set):
+    idx  token                                      cos(z_pred,μ)   ||z_pred||        ||μ||    L1(rng)   finite
+    100  35f8b51f153146108250e5c48d0b8026                  0.4629        97.74       181.55     0.0313        ✓
+    200  7876ea81dbe74b31a262426af050eb8a                  0.4660        97.75       180.12     0.0336        ✓
+    300  ba5d4c21f9d1441a80355fb2b2bd5908                  0.4855        97.73       180.95     0.0342        ✓
+    400  ff93d6dd1c0e4c569ee4bbc0c965c7f2                  0.4655        97.73       182.67     0.0362        ✓
+
+M3.1 OVERFIT samples (idx 0..9 — seen ~400× in M3.1 if M3.1 ckpt were loaded; M3.2 v2 sees them once per epoch only):
+    idx  token                                      cos(z_pred,μ)   ||z_pred||        ||μ||    L1(rng)   finite
+      0  01956caa034547e0aee232d163988678                  0.4583        97.72       181.48     0.0400        ✓
+      5  05a38d819af84ccd8a76291422820369                  0.4843        97.73       180.93     0.0351        ✓
+
+HELD-OUT mean cos(z_pred, μ) : +0.4700
+HELD-OUT mean L1(range image): 0.0338
+TRAIN    mean cos(z_pred, μ) : +0.4713
+TRAIN    mean L1(range image): 0.0375
+
+interpretation:
+  HELD-OUT cos > 0   → model uses conditioning to generalize, not memorize  ← M3.2 pass criterion
+  HELD-OUT cos > 0.3 → strong generalization on the 10-scene subset
+  HELD-OUT cos ≈ TRAIN cos → no memorization gap (good for low-data; expected here)
