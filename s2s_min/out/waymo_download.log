@@ -1,0 +1,237 @@
+
+============================================================
+  Split: training  (target: 20 segments)
+============================================================
+/home/satya/conda_envs/selfocc/share/google-cloud-sdk-490.0.0-0/platform/gsutil/third_party/google-auth-library-python/google/auth/crypt/_cryptography_rsa.py:22: CryptographyDeprecationWarning: Python 3.8 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.8.
+  import cryptography.exceptions
+/home/satya/conda_envs/selfocc/share/google-cloud-sdk-490.0.0-0/lib/third_party/google/auth/crypt/_cryptography_rsa.py:22: CryptographyDeprecationWarning: Python 3.8 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.8.
+  import cryptography.exceptions
+  Available: 798 segments
+  Picking: 20 segments
+    10017090168044687777_6380_000_6400_000.parquet
+    10023947602400723454_1120_000_1140_000.parquet
+    1005081002024129653_5313_150_5333_150.parquet
+    10061305430875486848_1080_000_1100_000.parquet
+    10072140764565668044_4060_000_4080_000.parquet
+    10072231702153043603_5725_000_5745_000.parquet
+    10075870402459732738_1060_000_1080_000.parquet
+    10082223140073588526_6140_000_6160_000.parquet
+    10094743350625019937_3420_000_3440_000.parquet
+    10096619443888687526_2820_000_2840_000.parquet
+    10107710434105775874_760_000_780_000.parquet
+    10153695247769592104_787_000_807_000.parquet
+    10206293520369375008_2796_800_2816_800.parquet
+    10212406498497081993_5300_000_5320_000.parquet
+    1022527355599519580_4866_960_4886_960.parquet
+    10226164909075980558_180_000_200_000.parquet
+    10231929575853664160_1160_000_1180_000.parquet
+    10235335145367115211_5420_000_5440_000.parquet
+    10241508783381919015_2889_360_2909_360.parquet
+    10275144660749673822_5755_561_5775_561.parquet
+
+  >>> 10017090168044687777_6380_000_6400_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10023947602400723454_1120_000_1140_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 1005081002024129653_5313_150_5333_150.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10061305430875486848_1080_000_1100_000.parquet
+    [stats]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10072140764565668044_4060_000_4080_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10072231702153043603_5725_000_5745_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10075870402459732738_1060_000_1080_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10082223140073588526_6140_000_6160_000.parquet
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10094743350625019937_3420_000_3440_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10096619443888687526_2820_000_2840_000.parquet
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10107710434105775874_760_000_780_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10153695247769592104_787_000_807_000.parquet
+    [stats]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10206293520369375008_2796_800_2816_800.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10212406498497081993_5300_000_5320_000.parquet
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 1022527355599519580_4866_960_4886_960.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10226164909075980558_180_000_200_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10231929575853664160_1160_000_1180_000.parquet
+    [stats]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10235335145367115211_5420_000_5440_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10241508783381919015_2889_360_2909_360.parquet
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10275144660749673822_5755_561_5775_561.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+
+============================================================
+  Split: validation  (target: 5 segments)
+============================================================
+/home/satya/conda_envs/selfocc/share/google-cloud-sdk-490.0.0-0/platform/gsutil/third_party/google-auth-library-python/google/auth/crypt/_cryptography_rsa.py:22: CryptographyDeprecationWarning: Python 3.8 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.8.
+  import cryptography.exceptions
+/home/satya/conda_envs/selfocc/share/google-cloud-sdk-490.0.0-0/lib/third_party/google/auth/crypt/_cryptography_rsa.py:22: CryptographyDeprecationWarning: Python 3.8 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.8.
+  import cryptography.exceptions
+  Available: 202 segments
+  Picking: 5 segments
+    10203656353524179475_7625_000_7645_000.parquet
+    1024360143612057520_3580_000_3600_000.parquet
+    10247954040621004675_2180_000_2200_000.parquet
+    10289507859301986274_4200_000_4220_000.parquet
+    10335539493577748957_1372_870_1392_870.parquet
+
+  >>> 10203656353524179475_7625_000_7645_000.parquet
+    [stats]   import cryptography.exceptions
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 1024360143612057520_3580_000_3600_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10247954040621004675_2180_000_2200_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10289507859301986274_4200_000_4220_000.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+  >>> 10335539493577748957_1372_870_1392_870.parquet
+    [lidar_calibration]   import cryptography.exceptions
+    [stats]   import cryptography.exceptions
+    [vehicle_pose]   import cryptography.exceptions
+    [lidar_pose]   import cryptography.exceptions
+    [lidar]   import cryptography.exceptions
+
+============================================================
+  Done. Final layout:
+============================================================
+3,7G	/home/satya/skr/sensor2sensor/s2s_min/data/waymo/training/
+902M	/home/satya/skr/sensor2sensor/s2s_min/data/waymo/validation/
+
+     20 training/lidar
+     20 training/lidar_calibration
+     20 training/lidar_pose
+     20 training/stats
+     20 training/vehicle_pose
+      5 validation/lidar
+      5 validation/lidar_calibration
+      5 validation/lidar_pose
+      5 validation/stats
+      5 validation/vehicle_pose

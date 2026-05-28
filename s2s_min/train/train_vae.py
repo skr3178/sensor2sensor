@@ -27,6 +27,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from data.nuscenes_mini import NuScenesLidarKeyframes, load_subset_tokens
+from data.waymo import SegmentGroupedRandomSampler, WaymoLidarTopKeyframes
 from models.lidar_vae import LiDARVAE
 from train.losses import lidar_vae_loss
 
@@ -64,11 +65,29 @@ class WeightEMA:
         return self.shadow
 
 
-def _build_dataset(nuscenes_root: Path, subset_file: Path, overfit_n: int):
-    tokens = load_subset_tokens(subset_file) if subset_file.exists() else None
-    ds = NuScenesLidarKeyframes(nuscenes_root, scene_tokens=tokens)
-    if overfit_n > 0:
-        n = min(overfit_n, len(ds))
+def _build_dataset(args):
+    """Pick the right LiDAR backend based on --dataset and apply --overfit clamp."""
+    if args.dataset == "nuscenes":
+        tokens = (
+            load_subset_tokens(args.subset_file)
+            if args.subset_file.exists()
+            else None
+        )
+        ds = NuScenesLidarKeyframes(args.nuscenes_root, scene_tokens=tokens)
+    elif args.dataset == "waymo":
+        ds = WaymoLidarTopKeyframes(
+            args.waymo_root,
+            split=args.waymo_split,
+            H_out=args.waymo_h,
+            W_out=args.waymo_w,
+            range_max_m=args.waymo_range_max,
+            intensity_max=args.waymo_intensity_max,
+        )
+    else:
+        raise ValueError(f"unknown --dataset {args.dataset!r}")
+
+    if args.overfit > 0:
+        n = min(args.overfit, len(ds))
         ds = Subset(ds, list(range(n)))
     return ds
 
@@ -79,9 +98,23 @@ def _format_loss_dict(d: dict) -> str:
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--dataset", choices=["nuscenes", "waymo"], default="nuscenes",
+                   help="LiDAR data backend. Defaults to nuscenes (existing M1 setup); "
+                        "use 'waymo' to train on the Waymo Open Dataset v2.0.1 download.")
     p.add_argument("--nuscenes_root", type=Path, default=REPO_ROOT / "nuscenes")
     p.add_argument("--subset_file", type=Path,
                    default=S2S_DIR / "out" / "subset_scene_tokens.txt")
+    p.add_argument("--waymo_root", type=Path, default=S2S_DIR / "data" / "waymo",
+                   help="Waymo v2 root with training/ and validation/ subdirs of LiDAR parquets.")
+    p.add_argument("--waymo_split", default="training", choices=["training", "validation"])
+    p.add_argument("--waymo_h", type=int, default=64,
+                   help="Target H for the Waymo TOP range image (native 64).")
+    p.add_argument("--waymo_w", type=int, default=2048,
+                   help="Target W (centered crop from native 2650; must be a multiple of 4).")
+    p.add_argument("--waymo_range_max", type=float, default=75.0,
+                   help="Clamp / divisor for the Waymo range channel (meters).")
+    p.add_argument("--waymo_intensity_max", type=float, default=1.5,
+                   help="Clamp / divisor for the Waymo intensity channel.")
     p.add_argument("--overfit", type=int, default=0,
                    help="if >0, clamp the dataset to N samples (overfit gate).")
     p.add_argument("--steps", type=int, default=0,
@@ -201,16 +234,33 @@ def main():
         out_root = S2S_DIR / "out"
         print(f"  back-compat symlinks    : {out_root}/lidar_vae{{.pt,_ema.pt,_best.pt}} → {args._run_dir.name}/*")
 
-    ds = _build_dataset(args.nuscenes_root, args.subset_file, args.overfit)
+    ds = _build_dataset(args)
+    print(f"  dataset                 : {args.dataset} "
+          f"({args.waymo_split if args.dataset == 'waymo' else 'trainval'})")
     print(f"  dataset size            : {len(ds)} keyframes "
           f"(overfit_n={args.overfit if args.overfit else 'off'})")
+    # Waymo full-epoch: segment-grouped sampler keeps each worker on one
+    # parquet at a time (matches the cache_size=1 budget of
+    # WaymoLidarTopKeyframes). In --overfit mode the subset already lives in
+    # one segment so plain shuffle is fine and the sampler doesn't apply.
+    if args.dataset == "waymo" and not isinstance(ds, Subset):
+        sampler = SegmentGroupedRandomSampler(ds, seed=args.seed)
+        shuffle = False
+    else:
+        sampler = None
+        shuffle = True
+
     loader = DataLoader(
         ds,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=shuffle,
+        sampler=sampler,
         num_workers=args.num_workers,
         pin_memory=(device.type == "cuda"),
         drop_last=False,
+        # Keep worker procs alive across epochs so the per-worker parquet cache
+        # survives — otherwise we pay a ~1 s parquet read for every epoch boundary.
+        persistent_workers=(args.num_workers > 0),
     )
 
     model = LiDARVAE(in_channels=3, latent_channels=8, base_channels=32).to(device)
@@ -262,8 +312,10 @@ def main():
         scheduler = None
 
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
-    ckpt_ema_path  = args.checkpoint.with_name("lidar_vae_ema.pt")
-    ckpt_best_path = args.checkpoint.with_name("lidar_vae_best.pt")
+    # Derive EMA/best names from the live checkpoint so multiple datasets
+    # (--checkpoint lidar_vae_waymo.pt vs lidar_vae_nuscenes.pt) don't clobber.
+    ckpt_ema_path  = args.checkpoint.with_name(args.checkpoint.stem + "_ema.pt")
+    ckpt_best_path = args.checkpoint.with_name(args.checkpoint.stem + "_best.pt")
 
     # EMA-smoothed L1_range, used to decide when to overwrite `lidar_vae_best.pt`.
     l1_range_ema: float | None = None

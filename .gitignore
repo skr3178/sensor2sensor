@@ -3,6 +3,12 @@
 
 # Waymo Open Dataset sample (~586 MB) — kept locally only
 s2s_min/data/waymo_sample/
+# Waymo Open Dataset v2.0.1 (LiDAR-only download) — multi-GB, local only
+s2s_min/data/waymo/
+# Optional packed float16 memmap (produced by scripts/preprocess_waymo_to_memmap.py)
+s2s_min/data/waymo_packed/
+# Per-run training logs we don't need under git (size + churn)
+s2s_min/out/train_vae_waymo_*.log
 
 # Pretrained model binaries (kept locally; re-downloadable via
 # s2s_min/scripts/download_image_vae.py). The folder layout + README + the small

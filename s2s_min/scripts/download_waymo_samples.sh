@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
-# Pull a small number of Waymo Open Dataset v2.0.1 segments (all 10 components per segment).
+# Pull a small number of Waymo Open Dataset v2.0.1 segments (LiDAR-only components).
 # Picks first N alphabetically from each split — change SEG_LIMIT_TRAIN / SEG_LIMIT_VAL to taste.
+#
+# Requires gsutil. Activate the project env first:
+#   source /home/satya/anaconda3/etc/profile.d/conda.sh
+#   conda activate /home/satya/conda_envs/selfocc
 set -euo pipefail
 
 BUCKET="gs://waymo_open_dataset_v_2_0_1"
-BASE="/media/skr/storage/self_driving/sensor2sensor/s2s_min/data/waymo_sample"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BASE="${WAYMO_BASE:-$REPO_ROOT/s2s_min/data/waymo}"
+# LiDAR-only: enough to train the LiDAR encoder. Drop camera_* and lidar_box (detection labels)
+# and lidar_camera_projection (only useful when pairing LiDAR with images).
 COMPONENTS=(
-  camera_image camera_calibration camera_box
-  lidar lidar_calibration lidar_camera_projection lidar_box lidar_pose
+  lidar lidar_calibration lidar_pose
   vehicle_pose stats
 )
 
-SEG_LIMIT_TRAIN=${SEG_LIMIT_TRAIN:-7}   # already have 1 training segment → 7 more = 8 total
-SEG_LIMIT_VAL=${SEG_LIMIT_VAL:-3}
+SEG_LIMIT_TRAIN=${SEG_LIMIT_TRAIN:-20}
+SEG_LIMIT_VAL=${SEG_LIMIT_VAL:-5}
 
-# Existing segment (skip if listed)
-EXISTING="10017090168044687777_6380_000_6400_000.parquet"
+# Existing segment(s) we should skip (kept for back-compat with the older sample dir).
+EXISTING=""
 
 download_split () {
   local split="$1" limit="$2"
@@ -31,7 +37,7 @@ download_split () {
   # Filter out segment we already have (for training) and take first N.
   local picked=()
   for s in "${all_segs[@]}"; do
-    if [[ "$split" == "training" && "$s" == "$EXISTING" ]]; then continue; fi
+    if [[ -n "$EXISTING" && "$split" == "training" && "$s" == "$EXISTING" ]]; then continue; fi
     picked+=("$s")
     [[ ${#picked[@]} -ge $limit ]] && break
   done
