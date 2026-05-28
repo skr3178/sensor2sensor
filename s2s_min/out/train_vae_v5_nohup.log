@@ -1,0 +1,50 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 8 x 2 = effective 16
+  lr / weight_decay       : 0.0004 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=4e-06)
+  loss weights            : range=50.0  intensity=1.0  validity=1.0  kl=1e-06
+  lpips weights           : normals=1.0  intensity=1.0  validity=1.0  (enabled, net=vgg)
+  EMA decay               : 0.999
+  run dir                 : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup
+  description             : 'v5-100scenes-bs16-lpips-nohup'
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_ema.pt
+    best (EMA, lowest L1_range-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt
+  back-compat symlinks    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae{.pt,_ema.pt,_best.pt} → 2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/*
+  dataset size            : 4023 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+  LPIPS module            : net=vgg, 14.72 M params, frozen
+  total optimizer steps   : 4016  (decay window = 3816 after warmup)
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:139: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
+  [step     1  epoch   0  t=   1.3s  vram=3806MiB  lr=2.00e-06]  l1r_ema=0.38016  total=22.67821  L1_range=0.38016  L1_intensity=0.42766  BCE_validity=0.69315  KL=0.11523  LPIPS_normals=0.87374  LPIPS_intensity=0.83355  LPIPS_validity=0.84186  
+  [step    50  epoch   0  t=  40.9s  vram=3822MiB  lr=1.00e-04]  l1r_ema=0.37612  total=19.89694  L1_range=0.33419  L1_intensity=0.44739  BCE_validity=0.65179  KL=0.57327  LPIPS_normals=0.67063  LPIPS_intensity=0.65304  LPIPS_validity=0.76460  
+  [step   100  epoch   0  t=  82.1s  vram=3822MiB  lr=2.00e-04]  l1r_ema=0.32740  total=11.55007  L1_range=0.17912  L1_intensity=0.44545  BCE_validity=0.45163  KL=0.81465  LPIPS_normals=0.64732  LPIPS_intensity=0.54911  LPIPS_validity=0.50068  
+  [step   150  epoch   0  t= 123.2s  vram=3822MiB  lr=3.00e-04]  l1r_ema=0.23612  total=4.66360  L1_range=0.04850  L1_intensity=0.30248  BCE_validity=0.34430  KL=1.33281  LPIPS_normals=0.60143  LPIPS_intensity=0.47213  LPIPS_validity=0.51821  
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:152: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+  [step   200  epoch   0  t= 164.3s  vram=3822MiB  lr=4.00e-04]  l1r_ema=0.15512  total=3.11822  L1_range=0.02407  L1_intensity=0.12317  BCE_validity=0.35873  KL=1.82762  LPIPS_normals=0.54768  LPIPS_intensity=0.45344  LPIPS_validity=0.43175  
+  [step   250  epoch   0  t= 205.3s  vram=3822MiB  lr=4.00e-04]  l1r_ema=0.10256  total=2.63650  L1_range=0.02033  L1_intensity=0.08882  BCE_validity=0.30202  KL=2.25679  LPIPS_normals=0.48994  LPIPS_intensity=0.37545  LPIPS_validity=0.36354  
+  -- end of epoch 1/16 --  l1_range_ema=0.10172  best_so_far=0.10172
+  [step   300  epoch   1  t= 246.5s  vram=3822MiB  lr=3.99e-04]  l1r_ema=0.06919  total=2.42509  L1_range=0.01930  L1_intensity=0.06115  BCE_validity=0.24550  KL=2.60173  LPIPS_normals=0.48713  LPIPS_intensity=0.35705  LPIPS_validity=0.30906  
+  [step   350  epoch   1  t= 287.5s  vram=3822MiB  lr=3.98e-04]  l1r_ema=0.04822  total=2.18115  L1_range=0.01382  L1_intensity=0.05639  BCE_validity=0.30458  KL=2.80793  LPIPS_normals=0.47956  LPIPS_intensity=0.34906  LPIPS_validity=0.30034  
+  [step   400  epoch   1  t= 328.6s  vram=3822MiB  lr=3.97e-04]  l1r_ema=0.03509  total=1.93534  L1_range=0.01367  L1_intensity=0.04910  BCE_validity=0.22262  KL=3.06993  LPIPS_normals=0.43169  LPIPS_intensity=0.30267  LPIPS_validity=0.24561  
+  [step   450  epoch   1  t= 369.7s  vram=3822MiB  lr=3.96e-04]  l1r_ema=0.02665  total=2.03362  L1_range=0.01773  L1_intensity=0.04946  BCE_validity=0.20604  KL=3.28244  LPIPS_normals=0.40183  LPIPS_intensity=0.27674  LPIPS_validity=0.21305  
+  [step   500  epoch   1  t= 410.7s  vram=3822MiB  lr=3.94e-04]  l1r_ema=0.02137  total=1.81212  L1_range=0.01364  L1_intensity=0.05661  BCE_validity=0.20382  KL=3.47120  LPIPS_normals=0.38508  LPIPS_intensity=0.27881  LPIPS_validity=0.20562  
+  -- end of epoch 2/16 --  l1_range_ema=0.02112  best_so_far=0.02112
+  [step   550  epoch   2  t= 451.9s  vram=3822MiB  lr=3.92e-04]  l1r_ema=0.01805  total=1.67164  L1_range=0.01202  L1_intensity=0.04518  BCE_validity=0.18727  KL=3.61424  LPIPS_normals=0.40417  LPIPS_intensity=0.25437  LPIPS_validity=0.17959  
+  [step   600  epoch   2  t= 493.0s  vram=3822MiB  lr=3.89e-04]  l1r_ema=0.01567  total=1.73989  L1_range=0.01356  L1_intensity=0.04764  BCE_validity=0.17472  KL=3.76978  LPIPS_normals=0.39716  LPIPS_intensity=0.26587  LPIPS_validity=0.17638  
+  [step   650  epoch   2  t= 534.1s  vram=3822MiB  lr=3.87e-04]  l1r_ema=0.01437  total=1.53490  L1_range=0.01094  L1_intensity=0.04482  BCE_validity=0.18004  KL=3.92977  LPIPS_normals=0.36635  LPIPS_intensity=0.24245  LPIPS_validity=0.15433  
+  [step   700  epoch   2  t= 575.1s  vram=3822MiB  lr=3.83e-04]  l1r_ema=0.01332  total=1.58619  L1_range=0.01130  L1_intensity=0.04336  BCE_validity=0.18931  KL=4.07876  LPIPS_normals=0.38673  LPIPS_intensity=0.23580  LPIPS_validity=0.16621  
+  [step   750  epoch   2  t= 616.2s  vram=3822MiB  lr=3.80e-04]  l1r_ema=0.01268  total=1.53688  L1_range=0.01164  L1_intensity=0.04881  BCE_validity=0.17542  KL=4.11747  LPIPS_normals=0.34245  LPIPS_intensity=0.23798  LPIPS_validity=0.15011  
+  -- end of epoch 3/16 --  l1_range_ema=0.01261  best_so_far=0.01261
+  [step   800  epoch   3  t= 657.5s  vram=3822MiB  lr=3.76e-04]  l1r_ema=0.01190  total=1.44891  L1_range=0.00983  L1_intensity=0.03578  BCE_validity=0.16838  KL=4.24804  LPIPS_normals=0.37920  LPIPS_intensity=0.22083  LPIPS_validity=0.15302  

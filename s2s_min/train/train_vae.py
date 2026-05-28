@@ -108,6 +108,16 @@ def main():
     p.add_argument("--lam_validity", type=float, default=1.0)
     p.add_argument("--lam_kl", type=float, default=1e-6,
                    help="KL weight; X-Drive / RangeLDM default. Lower if posterior collapses.")
+    # LPIPS — paper Eqs. (5)(6). Default 0 means "off"; set > 0 to enable.
+    p.add_argument("--lam_lpips_normals", type=float, default=1.0,
+                   help="LPIPS weight on normals derived from x_range via finite diffs. "
+                        "Highest-leverage of the 3 LPIPS terms.")
+    p.add_argument("--lam_lpips_intensity", type=float, default=1.0,
+                   help="LPIPS weight on intensity (1-ch, replicated to 3 for VGG).")
+    p.add_argument("--lam_lpips_validity", type=float, default=1.0,
+                   help="LPIPS weight on validity (1-ch, replicated to 3 for VGG).")
+    p.add_argument("--lpips_net", default="vgg", choices=["vgg", "alex", "squeeze"],
+                   help="LPIPS backbone. 'vgg' (default) is the paper's choice.")
     p.add_argument("--ema_decay", type=float, default=0.999,
                    help="EMA decay for shadow weights (kept on CPU).")
     p.add_argument("--best_ema_alpha", type=float, default=0.99,
@@ -119,11 +129,40 @@ def main():
     p.add_argument("--log_every", type=int, default=25)
     p.add_argument("--save_every", type=int, default=0,
                    help="if >0, save a checkpoint every N optimizer steps.")
-    p.add_argument("--checkpoint", type=Path,
-                   default=S2S_DIR / "out" / "lidar_vae.pt")
+    p.add_argument("--checkpoint", type=Path, default=None,
+                   help="Path to live checkpoint .pt. If omitted, written under "
+                        "out/runs/<timestamp>__<description>/lidar_vae.pt and the "
+                        "top-level out/lidar_vae*.pt compat symlinks are updated. "
+                        "Pass a path explicitly to skip the run-folder layout.")
+    p.add_argument("--description", type=str, default="untitled",
+                   help="Short tag appended to the timestamped run folder name. "
+                        "Use spaces-free identifiers like 'v4-lpips-50ep'.")
+    p.add_argument("--run_root", type=Path, default=S2S_DIR / "out" / "runs",
+                   help="Root directory containing all timestamped run folders.")
+    p.add_argument("--no_compat_symlinks", action="store_true",
+                   help="Skip updating the back-compat symlinks at out/lidar_vae*.pt. "
+                        "Only relevant when running with the default run-folder layout.")
     p.add_argument("--no_amp", action="store_true",
                    help="disable mixed precision (default: fp16 on CUDA).")
     args = p.parse_args()
+
+    # ---- Run folder layout ----
+    # When --checkpoint is not given, write into a timestamped subfolder of
+    # --run_root and optionally update three compat symlinks at out/ root so
+    # downstream scripts (visualize_*, eval/*, etc.) keep finding the latest
+    # checkpoint at the historical paths.
+    use_run_folder = args.checkpoint is None
+    if use_run_folder:
+        from datetime import datetime
+        stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        # Sanitize description to a single-token slug.
+        slug = "".join(c if (c.isalnum() or c in "-_") else "-" for c in args.description.strip())
+        run_dir = args.run_root / f"{stamp}__{slug}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        args.checkpoint = run_dir / "lidar_vae.pt"
+        args._run_dir = run_dir
+    else:
+        args._run_dir = args.checkpoint.parent
 
     if args.steps == 0 and args.epochs == 0:
         p.error("specify either --steps (with --overfit) or --epochs")
@@ -146,11 +185,21 @@ def main():
           f"(warmup={args.lr_warmup_steps} steps, lr_min={args.lr_min})")
     print(f"  loss weights            : range={args.lam_range}  intensity={args.lam_intensity}  "
           f"validity={args.lam_validity}  kl={args.lam_kl}")
+    lpips_on = (args.lam_lpips_normals + args.lam_lpips_intensity + args.lam_lpips_validity) > 0
+    print(f"  lpips weights           : normals={args.lam_lpips_normals}  "
+          f"intensity={args.lam_lpips_intensity}  validity={args.lam_lpips_validity}  "
+          f"({'enabled' if lpips_on else 'disabled'}, net={args.lpips_net})")
     print(f"  EMA decay               : {args.ema_decay}")
+    if use_run_folder:
+        print(f"  run dir                 : {args._run_dir}")
+        print(f"  description             : {args.description!r}")
     print(f"  checkpoints out         :")
     print(f"    final (live)          : {args.checkpoint}")
     print(f"    final (EMA)           : {args.checkpoint.with_name('lidar_vae_ema.pt')}")
     print(f"    best (EMA, lowest L1_range-EMA): {args.checkpoint.with_name('lidar_vae_best.pt')}")
+    if use_run_folder and not args.no_compat_symlinks:
+        out_root = S2S_DIR / "out"
+        print(f"  back-compat symlinks    : {out_root}/lidar_vae{{.pt,_ema.pt,_best.pt}} → {args._run_dir.name}/*")
 
     ds = _build_dataset(args.nuscenes_root, args.subset_file, args.overfit)
     print(f"  dataset size            : {len(ds)} keyframes "
@@ -174,6 +223,17 @@ def main():
     )
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     ema = WeightEMA(model, decay=args.ema_decay)
+
+    # Frozen LPIPS evaluator (VGG-16 trunk by default). Only built when any
+    # `lam_lpips_*` is non-zero — saves ~250 MB VRAM in the LPIPS-off case.
+    lpips_module = None
+    if lpips_on:
+        import lpips  # local import: only required when LPIPS is enabled
+        lpips_module = lpips.LPIPS(net=args.lpips_net, verbose=False).to(device).eval()
+        for p_ in lpips_module.parameters():
+            p_.requires_grad_(False)
+        print(f"  LPIPS module            : net={args.lpips_net}, "
+              f"{sum(p.numel() for p in lpips_module.parameters())/1e6:.2f} M params, frozen")
 
     # Compute total optimizer steps so the cosine schedule knows when to bottom out.
     if args.steps > 0:
@@ -224,6 +284,10 @@ def main():
                 lam_intensity=args.lam_intensity,
                 lam_validity=args.lam_validity,
                 lam_kl=args.lam_kl,
+                lam_lpips_normals=args.lam_lpips_normals,
+                lam_lpips_intensity=args.lam_lpips_intensity,
+                lam_lpips_validity=args.lam_lpips_validity,
+                lpips_module=lpips_module,
             )
         loss = losses["total"] / args.grad_accum
         scaler.scale(loss).backward()
@@ -255,6 +319,10 @@ def main():
                 "in_channels": 3, "latent_channels": 8, "base_channels": 32,
                 "lam_range": args.lam_range, "lam_intensity": args.lam_intensity,
                 "lam_validity": args.lam_validity, "lam_kl": args.lam_kl,
+                "lam_lpips_normals": args.lam_lpips_normals,
+                "lam_lpips_intensity": args.lam_lpips_intensity,
+                "lam_lpips_validity": args.lam_lpips_validity,
+                "lpips_net": args.lpips_net if lpips_on else None,
                 "ema_decay": args.ema_decay,
                 "lr": args.lr, "lr_min": args.lr_min,
                 "lr_warmup_steps": args.lr_warmup_steps,
@@ -348,6 +416,116 @@ def main():
     if last_losses:
         print(f"  final losses: {_format_loss_dict(last_losses)}")
         print(f"  final l1_range_ema: {l1_range_ema:.5f}")
+
+    # ---- run-folder bookkeeping: metadata + description + compat symlinks ----
+    if use_run_folder:
+        _write_run_metadata(args, lpips_on, step, t_start, last_losses,
+                            l1_range_ema, best_l1_range_ema)
+        if not args.no_compat_symlinks:
+            _update_compat_symlinks(args._run_dir, S2S_DIR / "out")
+        print(f"\n  run folder           : {args._run_dir}")
+
+
+def _write_run_metadata(args, lpips_on, final_step, t_start, last_losses,
+                        final_l1r_ema, best_l1r_ema) -> None:
+    """Drop a machine-readable metadata.json + a markdown description stub in the run folder."""
+    import json
+    import subprocess
+    import time as _time
+    from datetime import datetime
+
+    run_dir: Path = args._run_dir
+
+    # Best-effort git commit (don't fail the run if git isn't available).
+    git_commit = None
+    try:
+        git_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT), stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        pass
+
+    losses_snapshot = (
+        {k: v.item() if hasattr(v, "item") else v for k, v in last_losses.items()}
+        if last_losses else {}
+    )
+
+    meta = {
+        "description": args.description,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "wallclock_seconds": round(_time.perf_counter() - t_start, 1),
+        "git_commit": git_commit,
+        "args": {k: (str(v) if isinstance(v, Path) else v)
+                 for k, v in vars(args).items() if not k.startswith("_")},
+        "final_step": final_step,
+        "final_l1_range_ema": final_l1r_ema,
+        "best_l1_range_ema": best_l1r_ema,
+        "final_losses": losses_snapshot,
+        "lpips_enabled": lpips_on,
+    }
+    (run_dir / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
+
+    # Human-readable summary stub — left for the user to expand with notes.
+    desc_md = (
+        f"# Training run: `{args.description}`\n\n"
+        f"- **Started**: {datetime.now().isoformat(timespec='seconds')}\n"
+        f"- **Wall-clock**: {meta['wallclock_seconds']:.1f} s\n"
+        f"- **Git commit**: `{git_commit or '<unavailable>'}`\n"
+        f"- **Final step**: {final_step}\n"
+        f"- **Best l1_range_ema**: {best_l1r_ema:.5f}\n"
+        f"- **Final l1_range_ema**: {final_l1r_ema:.5f}\n\n"
+        f"## Recipe\n\n"
+        f"- λ_range / intensity / validity / kl = "
+        f"{args.lam_range} / {args.lam_intensity} / {args.lam_validity} / {args.lam_kl}\n"
+        f"- λ_lpips_normals / intensity / validity = "
+        f"{args.lam_lpips_normals} / {args.lam_lpips_intensity} / {args.lam_lpips_validity} "
+        f"({'on' if lpips_on else 'off'}, net={args.lpips_net})\n"
+        f"- Optimizer: AdamW lr={args.lr}, wd={args.weight_decay}, "
+        f"schedule={args.lr_schedule} (warmup={args.lr_warmup_steps}, lr_min={args.lr_min})\n"
+        f"- Batch × grad_accum: {args.batch_size} × {args.grad_accum}\n"
+        f"- EMA decay: {args.ema_decay}\n"
+        f"- Mixed precision: {not args.no_amp}\n\n"
+        f"## Notes (write your observations here)\n\n"
+        f"_TODO: what was different about this run? what worked / didn't?_\n"
+    )
+    (run_dir / "description.md").write_text(desc_md)
+
+
+def _update_compat_symlinks(run_dir: Path, out_root: Path) -> None:
+    """Point out/lidar_vae{,_ema,_best}.pt at the newest run's files.
+
+    Uses relative symlinks so the tree is portable. Replaces existing files
+    or symlinks at those paths; leaves real files alone if they're not
+    symlinks AND `_can_replace_path` returns False (cautious by default).
+    """
+    import os
+    for fname in ("lidar_vae.pt", "lidar_vae_ema.pt", "lidar_vae_best.pt"):
+        src = run_dir / fname
+        if not src.exists():
+            continue                                # e.g. _best.pt may be absent if --steps < warmup
+        link = out_root / fname
+        if link.is_symlink() or not link.exists():
+            try:
+                link.unlink(missing_ok=True)
+            except TypeError:                       # py3.7 fallback
+                if link.exists() or link.is_symlink():
+                    link.unlink()
+            rel_target = os.path.relpath(src, link.parent)
+            link.symlink_to(rel_target)
+        else:
+            # Real file at this path (legacy non-symlink). Don't clobber silently.
+            print(f"  WARN: {link} is a real file, not a symlink — leaving alone. "
+                  f"Move/delete it manually to enable compat-symlink updates.")
+
+    # Always-current latest pointer to the run dir itself.
+    latest = out_root / "latest_run"
+    try:
+        latest.unlink(missing_ok=True)
+    except TypeError:
+        if latest.exists() or latest.is_symlink():
+            latest.unlink()
+    rel_run = os.path.relpath(run_dir, latest.parent)
+    latest.symlink_to(rel_run, target_is_directory=True)
 
 
 if __name__ == "__main__":

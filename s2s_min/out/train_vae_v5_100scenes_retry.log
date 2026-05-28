@@ -1,0 +1,39 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 8 x 2 = effective 16
+  lr / weight_decay       : 0.0004 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=4e-06)
+  loss weights            : range=50.0  intensity=1.0  validity=1.0  kl=1e-06
+  lpips weights           : normals=1.0  intensity=1.0  validity=1.0  (enabled, net=vgg)
+  EMA decay               : 0.999
+  run dir                 : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_141036__v5-100scenes-bs16-lpips-retry
+  description             : 'v5-100scenes-bs16-lpips-retry'
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_141036__v5-100scenes-bs16-lpips-retry/lidar_vae.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_141036__v5-100scenes-bs16-lpips-retry/lidar_vae_ema.pt
+    best (EMA, lowest L1_range-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_141036__v5-100scenes-bs16-lpips-retry/lidar_vae_best.pt
+  back-compat symlinks    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae{.pt,_ema.pt,_best.pt} → 2026-05-28_141036__v5-100scenes-bs16-lpips-retry/*
+  dataset size            : 4023 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+  LPIPS module            : net=vgg, 14.72 M params, frozen
+  total optimizer steps   : 4016  (decay window = 3816 after warmup)
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:139: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn("Detected call of `lr_scheduler.step()` before `optimizer.step()`. "
+  [step     1  epoch   0  t=   1.3s  vram=3806MiB  lr=2.00e-06]  l1r_ema=0.38016  total=22.67821  L1_range=0.38016  L1_intensity=0.42766  BCE_validity=0.69315  KL=0.11523  LPIPS_normals=0.87374  LPIPS_intensity=0.83355  LPIPS_validity=0.84186  
+  [step    50  epoch   0  t=  40.9s  vram=3822MiB  lr=1.00e-04]  l1r_ema=0.37612  total=19.89784  L1_range=0.33422  L1_intensity=0.44723  BCE_validity=0.65146  KL=0.57558  LPIPS_normals=0.67194  LPIPS_intensity=0.65258  LPIPS_validity=0.76368  
+  [step   100  epoch   0  t=  82.1s  vram=3822MiB  lr=2.00e-04]  l1r_ema=0.32743  total=11.53949  L1_range=0.17817  L1_intensity=0.44557  BCE_validity=0.44687  KL=0.79884  LPIPS_normals=0.66011  LPIPS_intensity=0.56290  LPIPS_validity=0.51573  
+  [step   150  epoch   0  t= 123.2s  vram=3822MiB  lr=3.00e-04]  l1r_ema=0.23668  total=4.80245  L1_range=0.05166  L1_intensity=0.29643  BCE_validity=0.32645  KL=1.32005  LPIPS_normals=0.60768  LPIPS_intensity=0.47692  LPIPS_validity=0.51195  
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:152: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+  [step   200  epoch   0  t= 164.5s  vram=3822MiB  lr=4.00e-04]  l1r_ema=0.15576  total=3.22551  L1_range=0.02550  L1_intensity=0.12149  BCE_validity=0.38035  KL=1.82842  LPIPS_normals=0.54107  LPIPS_intensity=0.45341  LPIPS_validity=0.45406  
+  [step   250  epoch   0  t= 205.7s  vram=3822MiB  lr=4.00e-04]  l1r_ema=0.10258  total=2.53818  L1_range=0.01879  L1_intensity=0.07985  BCE_validity=0.29067  KL=2.29604  LPIPS_normals=0.48558  LPIPS_intensity=0.38155  LPIPS_validity=0.36084  
+  -- end of epoch 1/16 --  l1_range_ema=0.10173  best_so_far=0.10173
+  [step   300  epoch   1  t= 246.8s  vram=3822MiB  lr=3.99e-04]  l1r_ema=0.06941  total=2.18426  L1_range=0.01376  L1_intensity=0.06266  BCE_validity=0.25008  KL=2.56848  LPIPS_normals=0.49277  LPIPS_intensity=0.36819  LPIPS_validity=0.32248  
+  [step   350  epoch   1  t= 287.9s  vram=3822MiB  lr=3.98e-04]  l1r_ema=0.04822  total=2.19730  L1_range=0.01402  L1_intensity=0.05569  BCE_validity=0.30371  KL=2.79333  LPIPS_normals=0.48117  LPIPS_intensity=0.35197  LPIPS_validity=0.30371  

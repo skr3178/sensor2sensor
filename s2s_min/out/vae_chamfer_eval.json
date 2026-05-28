@@ -1,0 +1,60 @@
+{
+  "checkpoint": "/media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae.pt",
+  "step": 20,
+  "l1_range_ema": null,
+  "config": {
+    "in_channels": 3,
+    "latent_channels": 8,
+    "base_channels": 32
+  },
+  "train": {
+    "rows": [
+      {
+        "file": "n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.pcd.bin",
+        "n_raw": 34654,
+        "n_proj_only": 28159,
+        "n_vae": 15811,
+        "cd_floor": 6.103364474469728,
+        "cd_roundtrip": 46.96411560118999,
+        "vae_delta": 40.86075112672026
+      },
+      {
+        "file": "n008-2018-08-22-15-53-49-0400__LIDAR_TOP__1534968251147433.pcd.bin",
+        "n_raw": 34687,
+        "n_proj_only": 27454,
+        "n_vae": 16173,
+        "cd_floor": 5.647675033475498,
+        "cd_roundtrip": 45.38678668364592,
+        "vae_delta": 39.73911165017042
+      }
+    ],
+    "mean_cd_floor": 5.875519753972613,
+    "mean_cd_roundtrip": 46.175451142417955,
+    "mean_vae_delta": 40.299931388445344
+  },
+  "held_out": {
+    "rows": [
+      {
+        "file": "n015-2018-08-02-17-28-51+0800__LIDAR_TOP__1533202377949440.pcd.bin",
+        "n_raw": 34624,
+        "n_proj_only": 28787,
+        "n_vae": 15748,
+        "cd_floor": 5.7403725170780495,
+        "cd_roundtrip": 51.064974110849704,
+        "vae_delta": 45.32460159377165
+      },
+      {
+        "file": "n015-2018-09-27-15-33-17+0800__LIDAR_TOP__1538033852797877.pcd.bin",
+        "n_raw": 34527,
+        "n_proj_only": 29250,
+        "n_vae": 15340,
+        "cd_floor": 6.979745094866573,
+        "cd_roundtrip": 45.40859652039509,
+        "vae_delta": 38.42885142552852
+      }
+    ],
+    "mean_cd_floor": 6.3600588059723115,
+    "mean_cd_roundtrip": 48.2367853156224,
+    "mean_vae_delta": 41.876726509650084
+  }
+}

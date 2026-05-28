@@ -19,6 +19,14 @@ s2s_min/out/*.safetensors
 # Cached VAE latents (regenerable via scripts/cache_latents.py)
 s2s_min/out/cached_latents/
 
+# Per-run training output (checkpoints + tensorboard, regenerable)
+s2s_min/out/runs/
+s2s_min/out/latest_run
+
+# Transient process / scratch files
+s2s_min/out/*.pid
+/todo
+
 # Claude Code local state
 /.claude/
 

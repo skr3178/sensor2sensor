@@ -106,6 +106,30 @@ cross-attends to. Pooled once outside the U-Net and reused at every level.
 | Trade-off | Spatial precision of image conditioning is reduced. If M3 generation ignores conditioning, revisit (try `(16, 32)` KV grid or multi-scale KV per U-Net level). |
 | File | Inline in [`s2s_min/train/smoke_test.py`](s2s_min/train/smoke_test.py) and later [`s2s_min/train/train_diffusion.py`](s2s_min/train/train_diffusion.py) — no separate module |
 
+### Two-latent-space view — image and LiDAR latents are **independent**
+
+The image VAE's 4-channel latent and the LiDAR VAE's 8-channel latent are **decoupled** dimensions — neither constrains the other. The image latent's 4 channels are fixed by Stable Diffusion 1.5 (baked into the pretrained weights); the LiDAR latent's 8 channels are our deliberate choice (see [LiDAR VAE §4](#4-lidar-vae--detailed-spec)). They only meet in the cross-attention block of the LiDAR U-Net, where pooled image-side features (KV) condition the noisy LiDAR latent (Q).
+
+```
+        image side                              LiDAR side
+        ───────────                             ──────────
+CAM_FRONT (256×448)              LIDAR_TOP point cloud
+   │                                  │
+   ▼ SD 1.5 VAE (frozen)              ▼ our LiDAR VAE (M1-trained)
+image_latent [B, 4, 32, 56]      lidar_latent [B, 8, 8, 256]
+   │ 4-ch — fixed by SD              │ 8-ch — our choice
+   │                                  │
+   └────────► concat + pool ◄────────┘
+              [B, 10, 8, 64]
+              (image_latent_ch=4 + raymap_ch=6)
+                    │
+                    ▼ cross-attention KV
+       Diffusion U-Net operates on the LiDAR latent (Q)
+       and cross-attends to the pooled KV
+```
+
+Practical consequence: scaling `lidar.latent_channels` (e.g. 8 → 16 to match the paper) does **not** require changing the image VAE or the SD 1.5 pretrained weights. It only affects the LiDAR VAE head, the cached latents (M2), and the U-Net's input/output convs (`unet.in_channels`/`out_channels` in [configs/min.yaml](s2s_min/configs/min.yaml)).
+
 ---
 
 ## 4. LiDAR VAE — **detailed spec**
@@ -319,3 +343,7 @@ Cross-view attention (the blue Figure-3 box) is **not implemented** — we have 
 | 10 | `ẑ` (after DDIM 25 steps at inference) | `[B, 8, 8, 256]` | `DDIMScheduler` loop |
 | 11 | `range_image_pred` | `[B, 3, 32, 1024]` | `LiDARVAE.decode` |
 | 12 | point cloud `(N, 4)` | variable N | `range_image_to_pc` |
+
+
+
+

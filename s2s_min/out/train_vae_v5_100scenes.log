@@ -1,0 +1,26 @@
+======================================================================
+M1: LiDAR VAE TRAINING
+======================================================================
+  device                  : cuda
+  mixed precision (fp16)  : True
+  batch_size x grad_accum : 8 x 2 = effective 16
+  lr / weight_decay       : 0.0004 / 0.0001
+  lr schedule             : cosine  (warmup=200 steps, lr_min=4e-06)
+  loss weights            : range=50.0  intensity=1.0  validity=1.0  kl=1e-06
+  lpips weights           : normals=1.0  intensity=1.0  validity=1.0  (enabled, net=vgg)
+  EMA decay               : 0.999
+  run dir                 : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_121903__v5-100scenes-bs16-lpips
+  description             : 'v5-100scenes-bs16-lpips'
+  checkpoints out         :
+    final (live)          : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_121903__v5-100scenes-bs16-lpips/lidar_vae.pt
+    final (EMA)           : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_121903__v5-100scenes-bs16-lpips/lidar_vae_ema.pt
+    best (EMA, lowest L1_range-EMA): /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_121903__v5-100scenes-bs16-lpips/lidar_vae_best.pt
+  back-compat symlinks    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/lidar_vae{.pt,_ema.pt,_best.pt} → 2026-05-28_121903__v5-100scenes-bs16-lpips/*
+  dataset size            : 4023 keyframes (overfit_n=off)
+  VAE params              : 2.07 M
+  LPIPS module            : net=vgg, 14.72 M params, frozen
+  total optimizer steps   : 4016  (decay window = 3816 after warmup)
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/media/skr/storage/self_driving/sensor2sensor/env/lib/python3.8/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
