@@ -1,0 +1,71 @@
+# Sensor2Sensor minimum pipeline — single source of truth for dimensions.
+# Referenced by every module so reshapes are never hard-coded.
+
+image:
+  height: 256
+  width: 448
+  sd_vae_downsample: 8          # SD 1.5 VAE: spatial /8
+  latent_channels: 4            # SD 1.5 VAE latent
+  # Project-local checkpoint location. Populated by scripts/download_image_vae.py.
+  # When this folder is present, image_encoder.py loads from it directly instead of
+  # falling back to the HuggingFace global cache (~/.cache/huggingface/).
+  vae_local_dir: s2s_min/checkpoints/sd15_vae
+  vae_subfolder: vae           # files live at {vae_local_dir}/{vae_subfolder}/
+  vae_variant: fp16            # loads diffusion_pytorch_model.fp16.safetensors
+
+raymap:
+  channels: 6                   # origin (3) + direction (3)
+
+lidar:
+  range_image_h: 32             # nuScenes 32-beam
+  range_image_w: 1024
+  channels: 3                   # range, intensity, validity (no elongation; nuScenes LiDAR doesn't ship it)
+  range_clamp_m: 100            # nuScenes max range (paper uses 150 for Waymo)
+  intensity_max: 255            # nuScenes raw .bin intensity is uint8 in [0, 255]
+  vae_downsample: 4             # 32 -> 8, 1024 -> 256
+  latent_channels: 8
+
+# NuScenes multi-camera input. Order is fixed and matches the indexing used by the
+# paired dataset (data/nuscenes_mini_paired.py) and the CrossViewFusion module.
+nuscenes:
+  root: data/nuscenes_root
+  cameras: [CAM_FRONT, CAM_FRONT_LEFT, CAM_FRONT_RIGHT,
+            CAM_BACK,  CAM_BACK_LEFT,  CAM_BACK_RIGHT]
+
+# Pre-pooled cross-attention KV context. Per-camera (image_latent + raymap) is pooled
+# to (height x per_view_width), passed through CrossViewFusion, then token-concatenated
+# along W → final width is num_views * per_view_width.
+kv_context:
+  channels: 10                  # image_latent.channels + raymap.channels = 4 + 6 (per view)
+  height: 8
+  per_view_width: 64
+  num_views: 6
+  width: 384                    # = num_views * per_view_width
+
+# Shared-projection self-attention that mixes the 6 camera views before token-concat.
+# Token width is 10 (kv_context.channels), which doesn't divide nicely by num_heads,
+# so the module up-projects to hidden_dim, attends there, and projects back to 10.
+cross_view_fusion:
+  num_layers: 2
+  num_heads: 4
+  hidden_dim: 64
+  mlp_ratio: 4
+
+# LiDAR U-Net (single tower)
+unet:
+  in_channels: 8                # = lidar.latent_channels
+  out_channels: 8
+  stem_channels: 96
+  level_channels: [96, 192, 384]
+  num_res_blocks_per_level: 2
+  num_heads: 8
+  downsample_h_once: false      # optional knob: collapses H=8 -> 4 at stem
+  groupnorm_groups: 32
+  cross_attn_kv_channels: 10    # per-view KV channels; unchanged after fusion
+
+# Diffusion schedule (used from M0 onward)
+diffusion:
+  num_train_timesteps: 1000
+  beta_schedule: scaled_linear
+  prediction_type: v_prediction
+  inference_steps: 25

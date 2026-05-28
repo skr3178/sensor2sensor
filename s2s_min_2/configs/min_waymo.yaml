@@ -1,0 +1,54 @@
+# Sensor2Sensor minimum pipeline — Waymo Open Dataset v2.0.1 variant.
+# Use with: python -m s2s_min.train.train_vae --dataset waymo ...
+#
+# Only the lidar block changes vs configs/min.yaml. Image / raymap /
+# diffusion / kv_context / unet are unchanged because M1 is LiDAR-only.
+
+image:
+  height: 256
+  width: 448
+  sd_vae_downsample: 8
+  latent_channels: 4
+  vae_local_dir: s2s_min/checkpoints/sd15_vae
+  vae_subfolder: vae
+  vae_variant: fp16
+
+raymap:
+  channels: 6
+
+lidar:
+  # Waymo TOP laser native range-image shape is 64 x 2650 x 4.
+  # We center-crop W to 2048 (closest multiple of vae_downsample=4 below 2650),
+  # which preserves the forward arc and trims ~21 deg from each side of the
+  # rear azimuth. Native 64 rows are kept (no vertical downsample).
+  range_image_h: 64
+  range_image_w: 2048
+  channels: 4                   # range, intensity, elongation, validity (paper's Waymo spec)
+  range_clamp_m: 75             # Waymo TOP laser advertised max range; tighter than the paper's 150 m,
+                                # but RangeLDM/X-Drive use ~75 m for Waymo TOP and >99% of returns sit under it.
+  intensity_max: 1.5            # p99 of raw intensity is ~0.5; 1.5 keeps the retroreflector tail in.
+  elongation_max: 1.5           # p99 ~1.04, max ~1.5; same scale as intensity for consistent gradients.
+  vae_downsample: 4             # 64 -> 16, 2048 -> 512
+  latent_channels: 8
+
+kv_context:
+  channels: 10
+  height: 8
+  width: 64
+
+unet:
+  in_channels: 8
+  out_channels: 8
+  stem_channels: 96
+  level_channels: [96, 192, 384]
+  num_res_blocks_per_level: 2
+  num_heads: 8
+  downsample_h_once: false
+  groupnorm_groups: 32
+  cross_attn_kv_channels: 10
+
+diffusion:
+  num_train_timesteps: 1000
+  beta_schedule: scaled_linear
+  prediction_type: v_prediction
+  inference_steps: 25

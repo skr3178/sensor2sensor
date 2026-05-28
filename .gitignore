@@ -1,5 +1,9 @@
-# Local dataset symlink (huge nuScenes data, not for the repo)
+# Local dataset symlinks (huge nuScenes data, not for the repo).
+# Both the original top-level symlink and the s2s_min_2 copies point at the
+# same external dataset root and would otherwise be committed as broken refs.
 /nuscenes
+s2s_min_2/nuscenes
+s2s_min_2/data/nuscenes_root
 
 # Waymo Open Dataset sample (~586 MB) — kept locally only
 s2s_min/data/waymo_sample/
@@ -32,6 +36,27 @@ s2s_min/out/latest_run
 # Transient process / scratch files
 s2s_min/out/*.pid
 /todo
+
+# ── s2s_min_2/ mirrors the same patterns as s2s_min/ above ──
+# Big binary weights (re-downloadable / regenerable):
+s2s_min_2/checkpoints/**/*.safetensors
+s2s_min_2/checkpoints/**/*.bin
+s2s_min_2/checkpoints/**/*.pt
+s2s_min_2/checkpoints/.cache/
+# Trained / smoke-test checkpoints:
+s2s_min_2/out/*.pt
+s2s_min_2/out/*.safetensors
+# Cached VAE latents:
+s2s_min_2/out/cached_latents/
+# Per-run training output:
+s2s_min_2/out/runs/
+s2s_min_2/out/latest_run
+s2s_min_2/out/*.log
+s2s_min_2/out/*.pid
+# Local Waymo data (if/when copied over):
+s2s_min_2/data/waymo/
+s2s_min_2/data/waymo_packed/
+s2s_min_2/data/waymo_sample/
 
 # Claude Code local state
 /.claude/
