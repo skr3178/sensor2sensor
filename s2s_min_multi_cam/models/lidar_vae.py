@@ -1,21 +1,10 @@
 """LiDAR range-image VAE (M1).
 
-Compresses a 3-channel range image (range, intensity, validity) to a
-`latent_channels`-channel latent at 4x lower spatial resolution on both axes,
-and decodes back. Fully convolutional → the spatial dims are inherited from
-the input; only the channel widths are baked in.
+Compresses a 3-channel range image (range, intensity, validity) to an 8-channel
+latent at 4x lower spatial resolution on both axes, and decodes back.
 
-    encode:  [B, 3, H, W]      -> mu, logvar each [B, lc, H/4, W/4]
-    decode:  [B, lc, H/4, W/4] -> recon [B, 3, H, W] in [0, 1]
-
-Concrete shapes per dataset (default `latent_channels=8`):
-
-                          input               latent
-    nuScenes HDL-32E   [B, 3,  32, 1024]   [B, 8,  8,  256]
-    Waymo TOP (cropped) [B, 3,  64, 2048]   [B, 8, 16, 512]
-
-The annotations in `encode()` / `decode()` use the symbolic shapes — the older
-nuScenes-specific numbers live in the dataset-specific docs.
+    encode:  [B, 3, 32, 1024] -> mu, logvar each [B, 8,  8, 256]
+    decode:  [B, 8, 8, 256]   -> recon [B, 3, 32, 1024] in [0, 1]
 
 Trained from scratch in M1, then frozen for M2/M3/M4.
 
@@ -49,11 +38,9 @@ class LiDARVAE(nn.Module):
         self.in_channels = in_channels
         self.latent_channels = latent_channels
 
-        # Channel widths at each resolution. Spatial dims shown are
-        # nuScenes (H=32 W=1024) / Waymo TOP (H=64 W=2048).
-        ch1 = base_channels          # 32  @ H     x W
-        ch2 = base_channels * 2      # 64  @ H/2   x W/2
-        ch3 = base_channels * 4      # 128 @ H/4   x W/4
+        ch1 = base_channels          # 32  @ 32 x 1024
+        ch2 = base_channels * 2      # 64  @ 16 x  512
+        ch3 = base_channels * 4      # 128 @  8 x  256
 
         # ============================ encoder ============================
         self.enc_stem = CircularConv2d(in_channels, ch1, kernel_size=3)
@@ -112,28 +99,28 @@ class LiDARVAE(nn.Module):
         """Encode a normalized range image to posterior parameters (mu, logvar).
 
         Args:
-            x: range image in [0, 1], shape [B, 3, H, W].
+            x: range image in [0, 1], shape [B, 3, 32, 1024].
         Returns:
-            mu, logvar: each [B, latent_channels, H/4, W/4].
+            mu, logvar: each [B, 8, 8, 256].
         """
-        h = self.enc_stem(x)                                # [B,  ch1, H,   W  ]
+        h = self.enc_stem(x)                                # [B,  32, 32, 1024]
 
-        for blk in self.enc_stage1:                         # [B,  ch1, H,   W  ]
+        for blk in self.enc_stage1:                         # [B,  32, 32, 1024]
             h = blk(h)
-        h = self.enc_down1(h)                               # [B,  ch2, H/2, W/2]
+        h = self.enc_down1(h)                               # [B,  64, 16,  512]
 
-        for blk in self.enc_stage2:                         # [B,  ch2, H/2, W/2]
+        for blk in self.enc_stage2:                         # [B,  64, 16,  512]
             h = blk(h)
-        h = self.enc_down2(h)                               # [B,  ch3, H/4, W/4]
+        h = self.enc_down2(h)                               # [B, 128,  8,  256]
 
-        for blk in self.enc_bottleneck:                     # [B,  ch3, H/4, W/4]
+        for blk in self.enc_bottleneck:                     # [B, 128,  8,  256]
             h = blk(h)
-        h = self.enc_bottleneck_attn(h)                     # [B,  ch3, H/4, W/4]
+        h = self.enc_bottleneck_attn(h)                     # [B, 128,  8,  256]
 
         h = F.silu(self.enc_head_norm(h))
-        h = self.enc_head_conv(h)                           # [B, 2·lc, H/4, W/4]
+        h = self.enc_head_conv(h)                           # [B,  16,  8,  256]
 
-        mu, logvar = h.chunk(2, dim=1)                      # each [B, lc, H/4, W/4]
+        mu, logvar = h.chunk(2, dim=1)                      # each [B, 8, 8, 256]
         return mu, logvar
 
     # ----- decoder -------------------------------------------------------
@@ -141,28 +128,28 @@ class LiDARVAE(nn.Module):
         """Decode a latent to a reconstructed range image in [0, 1].
 
         Args:
-            z: latent tensor [B, latent_channels, H/4, W/4].
+            z: latent tensor [B, 8, 8, 256].
         Returns:
-            x_hat: [B, 3, H, W], per-channel sigmoid -> [0, 1].
+            x_hat: [B, 3, 32, 1024], per-channel sigmoid -> [0, 1].
         """
-        h = self.dec_stem(z)                                # [B, ch3, H/4, W/4]
+        h = self.dec_stem(z)                                # [B, 128,  8,  256]
 
-        h = self.dec_bottleneck_attn(h)                     # [B, ch3, H/4, W/4]
-        for blk in self.dec_bottleneck:                     # [B, ch3, H/4, W/4]
+        h = self.dec_bottleneck_attn(h)                     # [B, 128,  8,  256]
+        for blk in self.dec_bottleneck:                     # [B, 128,  8,  256]
             h = blk(h)
 
-        h = self.dec_up2(h)                                 # [B, ch3, H/2, W/2]
-        h = self.dec_ch_down2(h)                            # [B, ch2, H/2, W/2]
-        for blk in self.dec_stage2:                         # [B, ch2, H/2, W/2]
+        h = self.dec_up2(h)                                 # [B, 128, 16,  512]
+        h = self.dec_ch_down2(h)                            # [B,  64, 16,  512]
+        for blk in self.dec_stage2:                         # [B,  64, 16,  512]
             h = blk(h)
 
-        h = self.dec_up1(h)                                 # [B, ch2, H,   W  ]
-        h = self.dec_ch_down1(h)                            # [B, ch1, H,   W  ]
-        for blk in self.dec_stage1:                         # [B, ch1, H,   W  ]
+        h = self.dec_up1(h)                                 # [B,  64, 32, 1024]
+        h = self.dec_ch_down1(h)                            # [B,  32, 32, 1024]
+        for blk in self.dec_stage1:                         # [B,  32, 32, 1024]
             h = blk(h)
 
         h = F.silu(self.dec_head_norm(h))
-        h = self.dec_head_conv(h)                           # [B,   3, H,   W  ]
+        h = self.dec_head_conv(h)                           # [B,   3, 32, 1024]
 
         return torch.sigmoid(h)                             # [0, 1] per channel
 

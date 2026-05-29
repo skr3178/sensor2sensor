@@ -1,25 +1,21 @@
 """LiDAR VAE training loss (M1).
 
-Full loss (paper Eq. 1, full 4-channel form for Waymo; the 3-channel nuScenes
-subset drops the elongation term):
+Full loss (paper Eq. 1, our 3-channel subset for nuScenes):
 
-    L_VAE =  lam_range            * L1_masked(x_range,       x_hat_range,       mask=x_validity)
-          +  lam_intensity        * L1_masked(x_intensity,   x_hat_intensity,   mask=x_validity)
-          +  lam_elongation       * L1_masked(x_elongation,  x_hat_elongation,  mask=x_validity)   # Waymo only
+    L_VAE =  lam_range            * L1_masked(x_range,     x_hat_range,     mask=x_validity)
+          +  lam_intensity        * L1_masked(x_intensity, x_hat_intensity, mask=x_validity)
           +  lam_validity         * BCE(x_hat_validity, x_validity)
           +  lam_lpips_normals    * LPIPS(normals(x_range),     normals(x_hat_range))
           +  lam_lpips_intensity  * LPIPS(x_intensity,  x_hat_intensity)
           +  lam_lpips_validity   * LPIPS(x_validity,   x_hat_validity)
           +  lam_kl               * 0.5 * mean(mu^2 + sigma^2 - log sigma^2 - 1)
 
-Channel order is inferred from `x.shape[1]`:
-    3 channels (nuScenes, from `data/range_image.py`)
-        0 = range, 1 = intensity, 2 = validity
-    4 channels (Waymo, from `data/waymo_range_image.py`)
-        0 = range, 1 = intensity, 2 = elongation, 3 = validity
+Channel order is hard-coded to match `data/range_image.py`:
+    0 = range (normalized to [0, 1])
+    1 = intensity (normalized to [0, 1])
+    2 = validity (binary {0, 1})
 
-`lam_elongation` is ignored for the 3-channel path (nuScenes HDL-32E does not
-measure elongation).
+(`lam_lpips_elongation` is dropped — nuScenes LiDAR has no elongation channel.)
 
 Validity-masked L1: range and intensity errors are computed only at cells where
 the ground-truth validity is 1. Invalid cells carry no LiDAR return so any value
@@ -164,7 +160,6 @@ def lidar_vae_loss(
     logvar: torch.Tensor,
     lam_range: float = 1.0,
     lam_intensity: float = 1.0,
-    lam_elongation: float = 1.0,
     lam_validity: float = 1.0,
     lam_kl: float = 1e-6,
     lam_lpips_normals: float = 0.0,
@@ -172,42 +167,26 @@ def lidar_vae_loss(
     lam_lpips_validity: float = 0.0,
     lpips_module: nn.Module | None = None,
 ) -> dict[str, torch.Tensor]:
-    """4-8-term VAE loss; returns a dict with `total` and per-term scalars.
+    """4–7-term VAE loss; returns a dict with `total` and per-term scalars.
 
-    The number of L1 reconstruction terms is inferred from the channel count
-    of `x`: 3 → nuScenes (range/intensity/validity); 4 → Waymo
-    (range/intensity/elongation/validity). LPIPS terms are skipped entirely
-    (no VGG forward pass) if their λ is 0.
+    LPIPS terms are skipped entirely (no VGG forward pass) if their λ is 0,
+    so the cost only kicks in when explicitly enabled.
 
     Per-term entries are `.detach()`ed so callers can log them without holding
     the autograd graph.
     """
     assert x.shape == x_hat.shape, f"shape mismatch: {x.shape} vs {x_hat.shape}"
-    C = x.shape[1]
-    assert C in (3, 4), (
-        f"expected 3 (nuScenes) or 4 (Waymo) channels, got {C}"
-    )
+    assert x.shape[1] == 3, f"expected 3 channels (range/intensity/validity), got {x.shape[1]}"
 
-    x_range, x_int = x[:, 0:1], x[:, 1:2]
-    h_range, h_int = x_hat[:, 0:1], x_hat[:, 1:2]
-    if C == 4:
-        x_elong, x_valid = x[:, 2:3], x[:, 3:4]
-        h_elong, h_valid = x_hat[:, 2:3], x_hat[:, 3:4]
-    else:
-        x_elong = h_elong = None
-        x_valid = x[:, 2:3]
-        h_valid = x_hat[:, 2:3]
+    x_range, x_int, x_valid = x[:, 0:1], x[:, 1:2], x[:, 2:3]
+    h_range, h_int, h_valid = x_hat[:, 0:1], x_hat[:, 1:2], x_hat[:, 2:3]
 
     mask = x_valid
     denom = mask.sum().clamp(min=1.0)
 
-    # ---- reconstruction terms (paper Eq. 3) ----
+    # ---- 3 reconstruction terms (paper Eq. 3) ----
     loss_range = (mask * (x_range - h_range).abs()).sum() / denom
     loss_intensity = (mask * (x_int - h_int).abs()).sum() / denom
-    if x_elong is not None:
-        loss_elong = (mask * (x_elong - h_elong).abs()).sum() / denom
-    else:
-        loss_elong = None
 
     # ---- BCE on validity (paper Eq. 4) ----
     # Decoder head output already went through sigmoid. F.binary_cross_entropy
@@ -233,9 +212,6 @@ def lidar_vae_loss(
         + lam_validity * loss_validity
         + lam_kl * loss_kl
     )
-    if loss_elong is not None:
-        out["L1_elongation"] = loss_elong.detach()
-        total = total + lam_elongation * loss_elong
 
     # ---- LPIPS terms (paper Eqs. 5, 6) — only computed when enabled ----
     use_lpips = (
