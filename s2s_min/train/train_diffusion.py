@@ -49,8 +49,11 @@ if torch.cuda.is_available():
 from torch.utils.data import DataLoader, Subset
 
 from data.cached_latents import CachedLatentsDataset
+from data.cached_dinov3 import CachedDINOv3Dataset
 from models.diffusion import DiffusionWrapper
+from models.dinov3_proj import DINOv3Proj
 from models.unet import LiDARUNet, count_params
+import json
 
 
 KV_POOL_H = 8
@@ -93,7 +96,8 @@ class WeightEMA:
 def _collate(batch: list[dict]) -> dict:
     """Stack tensors; keep `sample_token` as a list of strings."""
     out: dict = {}
-    for k in ("image_latent", "raymap", "mu"):
+    keys = [k for k in ("image_latent", "dinov3", "raymap", "mu") if k in batch[0]]
+    for k in keys:
         out[k] = torch.stack([item[k] for item in batch], dim=0)
     out["sample_token"] = [item["sample_token"] for item in batch]
     if "logvar" in batch[0]:
@@ -107,11 +111,29 @@ def _build_kv_context(image_latent: torch.Tensor, raymap: torch.Tensor) -> torch
     return F.adaptive_avg_pool2d(kv_full, (KV_POOL_H, KV_POOL_W))
 
 
+def _build_kv_context_dinov3(proj, dinov3: torch.Tensor, raymap: torch.Tensor) -> torch.Tensor:
+    """Option B: DINOv3 feat [B,384,14,24] -proj-> [B,4,14,24] -↑-> [B,4,32,56], cat raymap(6) -> pool.
+
+    Conv1×1 commutes with bilinear upsample, so we project on the cheap patch grid then upsample
+    the 4-channel result. KV stays 10ch == [image_latent(4)+raymap(6)], so the U-Net is unchanged.
+    """
+    proj4 = proj(dinov3)                                                   # [B,4,14,24]
+    proj4 = F.interpolate(proj4, size=raymap.shape[-2:], mode="bilinear", align_corners=False)
+    kv_full = torch.cat([proj4, raymap], dim=1)                            # [B,10,32,56]
+    return F.adaptive_avg_pool2d(kv_full, (KV_POOL_H, KV_POOL_W))
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--cache_dir", type=Path,
                    default=S2S_DIR / "out" / "cached_latents",
                    help="directory of pre-encoded .npz latents (output of cache_latents.py)")
+    p.add_argument("--encoder", choices=["sdvae", "dinov3"], default="sdvae",
+                   help="image conditioning encoder. 'dinov3' (Option B) replaces the SD-VAE "
+                        "image_latent with a learned Conv1x1(384->4) on DINOv3 features; KV stays 10ch.")
+    p.add_argument("--dinov3_cache_dir", type=Path,
+                   default=S2S_DIR / "out" / "cached_dinov3_v5_100scenes",
+                   help="DINOv3 feature cache (output of cache_dinov3.py); used when --encoder dinov3.")
     p.add_argument("--overfit", type=int, default=0,
                    help="if >0, clamp the dataset to N samples (overfit gate, M3.0/M3.1).")
     p.add_argument("--steps", type=int, default=0,
@@ -188,7 +210,12 @@ def main():
     print(f"    best (EMA, lowest loss-EMA): {args.checkpoint.with_name(f'{_stem_for_print}_best.pt')}")
 
     # ----- dataset -----
-    ds: torch.utils.data.Dataset = CachedLatentsDataset(args.cache_dir)
+    if args.encoder == "dinov3":
+        ds: torch.utils.data.Dataset = CachedDINOv3Dataset(args.cache_dir, args.dinov3_cache_dir)
+        print(f"  encoder                 : dinov3 (Option B) — feat cache {args.dinov3_cache_dir}")
+    else:
+        ds = CachedLatentsDataset(args.cache_dir)
+        print(f"  encoder                 : sdvae (image_latent)")
     if args.overfit > 0:
         n = min(args.overfit, len(ds))
         ds = Subset(ds, list(range(n)))
@@ -228,12 +255,27 @@ def main():
         # Re-init the EMA shadow from the warm-started weights so it tracks from
         # the warm-start, not random init.
         del ckpt, sd
+
+    # ----- DINOv3 conditioning projection (Option B) -----
+    proj = None
+    if args.encoder == "dinov3":
+        mani = json.loads((args.dinov3_cache_dir / "MANIFEST.json").read_text())
+        if "feat_mean" not in mani or "feat_std" not in mani:
+            raise RuntimeError(
+                f"{args.dinov3_cache_dir}/MANIFEST.json lacks feat_mean/feat_std — "
+                "recompute the per-channel stats before training.")
+        proj = DINOv3Proj(mani["feat_mean"], mani["feat_std"]).to(device)
+        proj.train()
+        print(f"  dinov3 proj             : Conv1x1(384->4)+frozen-standardize "
+              f"({count_params(proj)/1e3:.1f}K trainable)")
+
     diffusion = DiffusionWrapper()
     print(f"  diffusion               : {diffusion.prediction_type}, "
           f"T={diffusion.num_train_timesteps}, DDIM steps={diffusion.inference_steps}")
 
     # ----- optimizer + scheduler + EMA + AMP -----
-    optim = torch.optim.AdamW(unet.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    train_params = list(unet.parameters()) + (list(proj.parameters()) if proj is not None else [])
+    optim = torch.optim.AdamW(train_params, lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     ema = WeightEMA(unet, decay=args.ema_decay)
 
@@ -281,13 +323,17 @@ def main():
         Returns a dict with 'mse' (the loss component we report + smooth).
         """
         # All tensors come from cache as fp32 — promote to device.
-        image_latent = batch["image_latent"].to(device, non_blocking=True)   # [B, 4, 32, 56]
         raymap       = batch["raymap"].to(device, non_blocking=True)         # [B, 6, 32, 56]
         mu           = batch["mu"].to(device, non_blocking=True)             # [B, 8, 8, 256]
 
         with torch.cuda.amp.autocast(enabled=use_amp):
             # Build per-batch KV context.
-            kv_context = _build_kv_context(image_latent, raymap)             # [B, 10, 8, 64]
+            if proj is not None:
+                dinov3 = batch["dinov3"].to(device, non_blocking=True)       # [B, 384, 14, 24]
+                kv_context = _build_kv_context_dinov3(proj, dinov3, raymap)  # [B, 10, 8, 64]
+            else:
+                image_latent = batch["image_latent"].to(device, non_blocking=True)  # [B, 4, 32, 56]
+                kv_context = _build_kv_context(image_latent, raymap)         # [B, 10, 8, 64]
             # Classifier-free-guidance hook: per-sample, zero kv_context with prob cond_dropout.
             if args.cond_dropout > 0:
                 B = kv_context.shape[0]
@@ -308,7 +354,7 @@ def main():
 
     def _optimizer_step():
         scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=args.grad_clip)
+        torch.nn.utils.clip_grad_norm_(train_params, max_norm=args.grad_clip)
         scaler.step(optim)
         scaler.update()
         optim.zero_grad(set_to_none=True)
@@ -329,9 +375,12 @@ def main():
     def _common_meta() -> dict:
         return {
             "step": step,
+            "encoder": args.encoder,
+            "dinov3_proj": (proj.state_dict() if proj is not None else None),
             "config": {
                 # U-Net architecture (from CLI; defaults reproduce legacy 3-stage).
                 "in_channels": 8, "out_channels": 8,
+                "encoder": args.encoder,
                 "stem_channels": args.stem_channels,
                 "level_channels": list(args.level_channels),
                 "num_res_blocks": 2,

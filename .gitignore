@@ -27,9 +27,14 @@ s2s_min/out/*.safetensors
 s2s_min/out/cached_latents/
 s2s_min/out/cached_latents_*/
 
+# DINOv3 feature cache (companion to cached_latents; ~1 GB, regenerable via
+# train/cache_dinov3.py). Same rationale as the latent caches above.
+s2s_min/out/cached_dinov3_*/
+
 # Per-run training output (checkpoints + tensorboard, regenerable)
 s2s_min/out/runs/
 s2s_min/out/latest_run
+s2s_min/out/.last_dinov3_run
 
 # Convenience symlink into the gitignored runs/ tree — broken on clone
 s2s_min/out/m4_demo
