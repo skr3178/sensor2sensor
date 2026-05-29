@@ -16,6 +16,12 @@ s2s_min/checkpoints/.cache/
 s2s_min/out/*.pt
 s2s_min/out/*.safetensors
 
+# Exception: the v5 LiDAR VAE best checkpoint (8 MB, 2.07 M params,
+# CD-VAE-only ≈ 0.79 m on 16 held-out) is tracked despite the *.pt and
+# runs/ ignores above. Re-add via `git add -f` if needed. The real file
+# sits at runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt;
+# the top-level s2s_min/out/lidar_vae_best.pt is a symlink to it.
+
 # Cached VAE latents (regenerable via scripts/cache_latents.py).
 # Globs to catch sibling caches like `cached_latents_v5_100scenes/`.
 s2s_min/out/cached_latents/
