@@ -1,0 +1,45 @@
+{
+  "n_samples": 800,
+  "n_valid_cells": 775882,
+  "device": "cuda",
+  "cache": "s2s_min/out/cached_latents_v5_100scenes",
+  "results": {
+    "img": {
+      "absrel": 0.6421661972999573,
+      "rmse": 15.36445426940918,
+      "delta1": 0.20182740688323975,
+      "pearson": 0.34774160385131836,
+      "r2": 0.12090057134628296
+    },
+    "ray": {
+      "absrel": 0.2862445116043091,
+      "rmse": 10.71812629699707,
+      "delta1": 0.6429008841514587,
+      "pearson": 0.8627611398696899,
+      "r2": 0.7422274351119995
+    },
+    "img+ray": {
+      "absrel": 0.308013379573822,
+      "rmse": 11.210298538208008,
+      "delta1": 0.6077842116355896,
+      "pearson": 0.8447026014328003,
+      "r2": 0.7120130062103271
+    },
+    "img_shuf": {
+      "absrel": 0.6165485382080078,
+      "rmse": 15.477812767028809,
+      "delta1": 0.205464169383049,
+      "pearson": 0.3573057949542999,
+      "r2": 0.12662279605865479
+    },
+    "mean": {
+      "absrel": 0.7041894793510437,
+      "rmse": 16.096450805664062,
+      "delta1": 0.16455703973770142,
+      "pearson": 0.0,
+      "r2": -0.00010263919830322266
+    }
+  },
+  "verdict": "SD-VAE FEATURES ARE DEPTH-IMPOVERISHED",
+  "action": "=> Image probe ~ position prior; features add little depth signal.    Disambiguates toward H2/H3.  ACTION: swap the image encoder (C-series)."
+}

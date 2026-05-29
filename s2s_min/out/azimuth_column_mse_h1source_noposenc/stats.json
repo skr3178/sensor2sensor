@@ -1,0 +1,22 @@
+{
+  "ckpt": "s2s_min/out/runs/2026-05-29_160727__m3-unet-60M-v5_850scenes-data-hypothesis/lidar_unet_best.pt",
+  "ckpt_step": 1061,
+  "ckpt_loss_ema": 0.3519883382978349,
+  "n_samples": 32,
+  "timesteps": [
+    100,
+    300,
+    500,
+    700,
+    900
+  ],
+  "n_observations": 160,
+  "front_band_cols": [
+    104,
+    152
+  ],
+  "mse_front_mean": 0.46049974433456864,
+  "mse_back_mean": 0.4907216165814764,
+  "mse_overall": 0.4850550155351812,
+  "back_to_front_ratio": 1.0656284235088533
+}

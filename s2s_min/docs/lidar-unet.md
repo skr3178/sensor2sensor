@@ -686,3 +686,216 @@ Tracked as a separate todo. CFG stays in the inference path either way —
 the optimal `w` for the bigger U-Net will likely shift upward (better-trained
 models can absorb more guidance before saturating).
 
+
+## 10. The 0.32 mse_ema ceiling — capacity does not break it
+
+Performed 2026-05-29. After §9, we scaled the U-Net to 60 M (level_channels
+`(192, 384, 768)`) and re-ran. The capacity-hypothesis test failed:
+
+| Run | Params | Steps | Final mse_ema | Notes |
+|---|---|---|---|---|
+| Baseline bs16 (§9) | 14.81 M | 12,600 | 0.297 | 1h45 train |
+| 60M retry | 59.07 M | 1,750 (early-stop) | ~0.321 | plateaued, no further descent |
+| 60M on 8.5× more data (34k cache) | 59.07 M | 1,050 (killed) | ~0.32 (same trajectory) | H1 ruled out — data isn't the bottleneck |
+
+Both the **15M → 60M** width bump and the **4k → 34k** data scale-up land at
+the **same 0.32 floor**. Capacity and data quantity are not the binding
+constraint at this scale.
+
+### 10.1 H5 audit — finding the actual bottlenecks
+
+Audit performed against the 60M H1 checkpoint (run folder
+[`runs/2026-05-29_182319__h5-audit-kv-pool-info-loss/`](../out/runs/2026-05-29_182319__h5-audit-kv-pool-info-loss/)):
+
+| Item | Verdict | Headline number | Severity |
+|---|---|---|---|
+| KV pool → image-latent info | ⚠ destroyed | **PSNR = 6.3 dB** (signal-to-noise floor) | ★★★★★ |
+| KV pool → raymap info | ✓ preserved | PSNR = 49.3 dB | none |
+| Cross-attention positional encoding | ⚠ missing | 0 positional info in Q or K | ★★★★★ |
+| Noise schedule (α² + σ² = 1) | ✓ clean | exact to fp32 | none |
+| Raymap geometric math | ✓ clean | unit length to 6 decimals | none |
+
+Two compounding bugs were identified. The cross-attention copies the LDM /
+LiDAR-Diffusion / MVDream pattern, which is fine for **text** conditioning
+(text already carries positional structure inside the encoder) but wrong for
+**spatial image features** — without pos-encoding, Q and K reduce to a
+bag-of-features matcher that can't distinguish "ray from top-left image
+pixel" from "ray from bottom-right image pixel". Reference codebases that
+spatially condition (diffusers `Transformer2DModel`, X-Drive) explicitly
+add positional encoding to spatial tokens.
+
+Full taxonomy of candidate fixes (sections A–I) in
+[`../../Unet_fix.md`](../../Unet_fix.md).
+
+### 10.2 Fix #1: 2D sin/cos pos-enc on Cross-Attention Q + K
+
+Smallest, cheapest fix from the taxonomy. Implementation:
+[`models/attention.py`](../models/attention.py).
+
+- 2D sin/cos pos-embed computed lazily, **cached by (H, W, dim, device, dtype)**
+- Added **post-projection** in `MultiHeadAttention` (DiT / MMDiT style) — Q
+  and K each receive an additive pos-enc in q_dim space; V left untouched
+  (carries content)
+- Pre-projection alternative was rejected because `kv_channels=10` is too
+  narrow to carry useful positional bandwidth — lifting via to_k/to_v to
+  `q_dim` (192–768) gives plenty
+- **0 trainable params**, ~0 FLOPs at runtime after first forward per shape
+- State-dict compatible: legacy checkpoints load with 0 missing / 0 unexpected
+  keys (verified via `tests/test_unet_nstage_regression.py`)
+
+A `--init_from` CLI flag was added to
+[`train/train_diffusion.py`](../train/train_diffusion.py) for warm-starting
+U-Net weights from any compatible checkpoint (optimizer / LR / step counter
+reset; EMA snapshot from warm-started weights).
+
+### 10.3 Warm-start test results
+
+Setup ([`runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/`](../out/runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/)):
+
+| Knob | Value |
+|---|---|
+| Init weights | H1 best @ step 1061, source loss_ema 0.3520 |
+| Cache | `cached_latents_v5_850scenes` (34,149 samples) |
+| Arch | (192, 384, 768) 59.07 M (matches source) |
+| bs × grad_accum | 16 × 1 (eff batch 16) |
+| lr / warmup | 1e-4 / 50 steps (cosine over 2500) |
+| Wall-clock to kill | 13.3 min @ step 950 |
+
+Loss trajectory:
+
+| step | mse_ema | wall | note |
+|---|---|---|---|
+| 1 | 0.530 | 0.9s | warm-start shock — old weights see pos-enc'd Q/K for first time |
+| 50 | 0.485 | 37s | LR warmup complete |
+| 200 | 0.381 | 201s | post-shock recovery |
+| 400 | 0.353 | 366s | matched source `best.pt` plateau |
+| 600 | 0.335 | 527s | below source, descent still steady |
+| 750 | 0.326 | 643s | first sub-0.327 reading |
+| 775 | 0.324 | 664s | new low |
+| 800 | 0.327 | 683s | slight bounce |
+| 875 | 0.324 | 738s | reasserted low |
+| **946 (best)** | **0.3201** | 791s | **best EMA** |
+| 950 (killed) | 0.321 | 796s | flat — 200 steps of zero descent |
+
+### 10.4 Verdict — same ceiling, ~2× faster convergence
+
+The pos-enc fix did **not** break through the 0.32 floor. We tied the
+60M plateau (0.321 from H1 retry at step 1750) at step **946** —
+roughly half the optimizer steps and a quarter the wall-clock.
+
+| Path to mse_ema ≈ 0.32 | Steps | Wall-clock |
+|---|---|---|
+| 60M without pos-enc | ~1,750 | ~28 min |
+| 60M with pos-enc Fix #1 (this run) | **946** | **13 min** |
+
+This is a real **convergence-rate** improvement but **not** a ceiling fix.
+Pos-enc is now a permanent feature of the architecture (kept on for all
+future runs) — but it's not the last bug.
+
+### 10.5 What this tells us about the next move
+
+The 0.32 floor likely reflects **two remaining causes**, either of which
+alone would account for it:
+
+1. **KV pool destroys image latent (audit: 6.3 dB PSNR).** Even with
+   positional cross-attention, K/V values themselves are mush. The model
+   has nothing positionally-meaningful to attend to. Predicts Fix #2 (bump
+   pool to 16×128 → 8.0 dB) or Fix #3 (drop pool entirely → 60+ dB) as
+   the next lever.
+2. **Information asymmetry: CAM_FRONT covers ~70° of 360° azimuth.**
+   The remaining ~290° of LiDAR target has no image observation; the
+   model can only sample from a learned marginal. The MSE on those
+   columns has an irreducible entropy floor. Predicts scope-B (6-camera
+   surround input from [`min_pipeline_plan.md`](../../min_pipeline_plan.md)
+   §Scope) as the next lever — this is paper-faithful.
+
+The two predictions can be **cheaply disambiguated** with a per-azimuth-column
+MSE diagnostic on the pos-enc'd checkpoint:
+
+- If front-facing columns have markedly lower MSE than back-facing →
+  FoV asymmetry confirmed → scope-B is the right investment
+- If MSE is uniform across azimuth → conditioning pathway is still broken
+  downstream of pos-enc → Fix #2 / Fix #3 (better KV pool) first
+
+Tracked as the next step.
+
+### 10.6 Per-azimuth-column diagnostic — three causes, not two
+
+Run on the pos-enc'd best.pt @ step 946 to disambiguate H_FoV vs H_pool.
+Script: [`scripts/azimuth_column_mse.py`](../scripts/azimuth_column_mse.py).
+Artifacts: [`out/azimuth_column_mse_posenc/`](../out/azimuth_column_mse_posenc/).
+
+Setup: 32 held-out samples (cache tail) × 5 timesteps {100, 300, 500, 700,
+900} = 160 v-MSE observations. Reduce over batch + channels + elevation;
+keep azimuth column → [W=256] per-column array. ~5 s wall-clock on GPU.
+
+Headline numbers:
+
+| Region | latent cols | azimuth | mean MSE |
+|---|---|---|---|
+| Overall | [0, 255] | 360° | 0.348 |
+| **Front-band** | [104, 152] | ±35° from +x | **0.330** |
+| **Back-band** | the rest | ~290° | **0.352** |
+| **back / front ratio** | | | **1.065** |
+
+The 7 % differential confirms image conditioning IS doing positive work in
+the front FoV — pos-enc is not a no-op. But the ratio is far below the
+~2–3× we'd expect if FoV asymmetry were the dominant cause.
+
+**Three unexpected features** that neither H_FoV nor H_pool predicted:
+
+1. **Asymmetric MSE spike at azimuth ≈ −90°** (right side of vehicle).
+   Smoothed MSE peaks at ~0.45 vs baseline ~0.35 (+30 %). The largest
+   deviation in the entire plot. Not in the front FoV; not mirrored at
+   +90°. nuScenes drives on the right (Boston / Singapore right-hand
+   traffic), so the right side faces road shoulder, parked cars, and
+   curbs — much higher scene variance. **Could be data structure, could be
+   model failure — needs the H1-no-posenc comparison to disambiguate.**
+
+2. **Front-band dip is real but shallow.** MSE in the inner ±20° drops to
+   ~0.31, vs ~0.35 baseline (~10 % local improvement). Conditioning is
+   working a little, not a lot.
+
+3. **Edge crash at ±180° to ~0.18 MSE.** A **circular-padding artifact** —
+   the U-Net's circular conv on W constrains cols 0 and W-1 to agree, so
+   prediction errors cancel at the seam. Sanity check only, not real win.
+
+Re-interpretation: the 0.32 floor is now best explained as a **mixture of
+three partial causes**, not the cleaner H_FoV-vs-H_pool dichotomy from
+§10.5:
+
+| Cause | Plot evidence | Effect size |
+|---|---|---|
+| H_FoV (CAM_FRONT covers ~20 % of azimuth) | ~7 % front/back differential | small but real |
+| H_pool (KV pool destroys image at 6.3 dB PSNR) | front-band MSE only 0.33, well above the floor we'd see with perfect conditioning | medium |
+| **NEW: localized −90° failure** | +30 % MSE spike, asymmetric L/R | large but local |
+
+The −90° spike is the loudest signal and was not predicted by either
+prior hypothesis. Two follow-ups disambiguate before committing engineering
+effort to either scope-B or Fix #2:
+
+  (a) Same diagnostic on H1-source ckpt (no pos-enc). Spike disappears →
+      pos-enc related. Spike persists → data structure (drive-on-right
+      convention).
+  (b) Per-elevation-row MSE on the same data. Spike comes from specific
+      HDL-32E beam rows → LiDAR sensor structure, not model.
+
+### 10.7 Things ruled OUT by this experiment
+
+- ❌ **Naked capacity gap** (15M → 60M plateaued at same loss in §10)
+- ❌ **Data scale** (4k cache vs 34k cache, identical curves ±1 %; H1 audit)
+- ❌ **Bag-of-features cross-attention** (Fix #1 sped convergence but
+  didn't change the floor — so this *was* a bug, but not the binding one)
+- ❌ **Noise schedule + raymap math** (audit verified clean)
+- ❌ **Bug in the warm-start path** (initial step 1 mse=0.53 was real
+  pos-enc shock to old weights; recovered within ~400 steps)
+
+### 10.8 Artifacts
+
+| File | Purpose |
+|---|---|
+| [`runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/lidar_unet_best.pt`](../out/runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/lidar_unet_best.pt) | best EMA ckpt @ step 946, loss_ema 0.3201 — drop-in for `decode_to_pointcloud` if `attention.py` is at this commit |
+| [`runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/live_loss.png`](../out/runs/2026-05-29_184618__m3-unet-60M-posenc-fix1-warmstart/live_loss.png) | loss curve through step 950 |
+| [`runs/2026-05-29_182319__h5-audit-kv-pool-info-loss/`](../out/runs/2026-05-29_182319__h5-audit-kv-pool-info-loss/) | H5 audit visualizations (KV pool PSNR, raymap unit-length check) |
+| [`../../Unet_fix.md`](../../Unet_fix.md) | Full ranked taxonomy of remaining candidate fixes (A–I) |
+

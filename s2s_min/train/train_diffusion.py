@@ -154,6 +154,9 @@ def main():
                         "3 entries → 3-stage; 4 entries → 4-stage paper-match. "
                         "Phase-1 target: 192 384 768 (~60M). Phase-4 target: "
                         "160 320 640 1024 (~125M).")
+    p.add_argument("--init_from", type=Path, default=None,
+                   help="optional warm-start: load U-Net weights from this .pt before training. "
+                        "Arch (level_channels) must match. Optimizer/scheduler/step start fresh.")
     args = p.parse_args()
 
     if args.steps == 0 and args.epochs == 0:
@@ -211,6 +214,20 @@ def main():
     print(f"  U-Net arch              : stem={args.stem_channels}, "
           f"levels={tuple(args.level_channels)} ({len(args.level_channels)}-stage)")
     print(f"  U-Net params            : {n_params/1e6:.2f} M")
+
+    if args.init_from is not None:
+        if not args.init_from.exists():
+            raise FileNotFoundError(f"--init_from path does not exist: {args.init_from}")
+        ckpt = torch.load(args.init_from, map_location=device, weights_only=False)
+        sd = ckpt["state_dict"]
+        missing, unexpected = unet.load_state_dict(sd, strict=False)
+        print(f"  warm-start init_from    : {args.init_from}")
+        print(f"    src step / loss_ema   : {ckpt.get('step', '?')} / {ckpt.get('loss_ema', '?')}")
+        print(f"    missing keys          : {len(missing)} (e.g. {missing[:3]})")
+        print(f"    unexpected keys       : {len(unexpected)} (e.g. {unexpected[:3]})")
+        # Re-init the EMA shadow from the warm-started weights so it tracks from
+        # the warm-start, not random init.
+        del ckpt, sd
     diffusion = DiffusionWrapper()
     print(f"  diffusion               : {diffusion.prediction_type}, "
           f"T={diffusion.num_train_timesteps}, DDIM steps={diffusion.inference_steps}")
