@@ -35,12 +35,23 @@ from data.range_image import (
 from models.lidar_vae import LiDARVAE
 
 NUSCENES_ROOT = Path("nuscenes")  # symlink at project root
-CKPT          = Path("s2s_min/out/lidar_vae.pt")
 SUBSET_TOKENS = Path("s2s_min/out/subset_scene_tokens.txt")
-OUT_DIR       = Path("s2s_min/out/lidar_vae_samples")
-OUT_PNG       = OUT_DIR / "samples.png"
-OUT_STATS     = OUT_DIR / "stats.txt"
+DEFAULT_CKPT  = Path("s2s_min/out/lidar_vae.pt")
+DEFAULT_OUT_DIR = Path("s2s_min/out/lidar_vae_samples")
 N_SAMPLES     = 4
+
+# --- CLI overrides (eval_after.py uses these to redirect into a run-dir) ---
+import argparse as _argparse
+_p = _argparse.ArgumentParser(add_help=False)
+_p.add_argument("--ckpt", type=Path, default=DEFAULT_CKPT)
+_p.add_argument("--out_dir", type=Path, default=DEFAULT_OUT_DIR)
+_p.add_argument("--n_samples", type=int, default=N_SAMPLES)
+_args, _ = _p.parse_known_args()
+CKPT      = _args.ckpt
+OUT_DIR   = _args.out_dir
+OUT_PNG   = OUT_DIR / "samples.png"
+OUT_STATS = OUT_DIR / "stats.txt"
+N_SAMPLES = _args.n_samples
 
 
 def collect_lidar_paths() -> list[Path]:

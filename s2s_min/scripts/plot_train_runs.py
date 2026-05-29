@@ -30,10 +30,22 @@ LOGS = {
     "v1 (λ_range=1, constant LR, no EMA)":     S2S / "out" / "train_vae_epoch50.log",
     "v2 (λ_range=50, constant LR, EMA)":       S2S / "out" / "train_vae_epoch50_v2.log",
     "v3 (λ_range=50, cosine LR, EMA)":         S2S / "out" / "train_vae_epoch50_v3.log",
-    "v4 (v3 + 3 LPIPS terms)":                 S2S / "out" / "train_vae_epoch50_v4_lpips.log",
+    "v4 (v3 + 3 LPIPS terms, 10 scenes)":      S2S / "out" / "train_vae_epoch50_v4_lpips.log",
+    "v5 (v4 + 100 scenes, batch16)":           S2S / "out" / "train_vae_v5_nohup.log",
 }
-OUT      = S2S / "out" / "loss_comparison.png"
-OUT_SOLO = S2S / "out" / "loss_plots"             # one PNG per loss term
+DEFAULT_OUT      = S2S / "out" / "loss_comparison.png"
+DEFAULT_OUT_SOLO = S2S / "out" / "loss_plots"             # one PNG per loss term
+
+# --- CLI overrides so eval_after.py can redirect into a per-run snapshot ---
+import argparse as _argparse
+_p = _argparse.ArgumentParser(add_help=False)
+_p.add_argument("--out", type=Path, default=DEFAULT_OUT,
+                help="Combined 8-panel PNG path.")
+_p.add_argument("--out_solo", type=Path, default=DEFAULT_OUT_SOLO,
+                help="Directory for the per-metric standalone PNGs.")
+_args, _ = _p.parse_known_args()
+OUT      = _args.out
+OUT_SOLO = _args.out_solo
 
 # Single regex to capture all numeric `key=value` pairs after the `[step …]` prefix.
 STEP_RE = re.compile(r"\[step\s+(\d+)\s+epoch")
@@ -56,7 +68,8 @@ COLORS = {
     "v1 (λ_range=1, constant LR, no EMA)":     "#888888",   # gray
     "v2 (λ_range=50, constant LR, EMA)":       "#1f77b4",   # blue
     "v3 (λ_range=50, cosine LR, EMA)":         "#d62728",   # red
-    "v4 (v3 + 3 LPIPS terms)":                 "#2ca02c",   # green — committed
+    "v4 (v3 + 3 LPIPS terms, 10 scenes)":      "#2ca02c",   # green
+    "v5 (v4 + 100 scenes, batch16)":           "#9467bd",   # purple — newest committed
 }
 
 

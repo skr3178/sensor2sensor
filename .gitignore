@@ -16,8 +16,10 @@ s2s_min/checkpoints/.cache/
 s2s_min/out/*.pt
 s2s_min/out/*.safetensors
 
-# Cached VAE latents (regenerable via scripts/cache_latents.py)
+# Cached VAE latents (regenerable via scripts/cache_latents.py).
+# Globs to catch sibling caches like `cached_latents_v5_100scenes/`.
 s2s_min/out/cached_latents/
+s2s_min/out/cached_latents_*/
 
 # Per-run training output (checkpoints + tensorboard, regenerable)
 s2s_min/out/runs/
@@ -50,6 +52,9 @@ Reference_code/diffusers/
 
 # guided-diffusion local clone (kept locally, not pushed)
 Reference_code/guided-diffusion/
+
+# DDPM (Ho 2020) local clone (kept locally, not pushed)
+Reference_code/diffusion/
 
 # Reference paper PDFs (kept locally, not pushed)
 Reference_code/**/*.pdf

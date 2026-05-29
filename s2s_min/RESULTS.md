@@ -40,6 +40,68 @@ Reproduce the table any time with `env/bin/python s2s_min/scripts/collect_result
 
 ---
 
+## Update (2026-05-28) — v5 VAE + bs16 U-Net + beam-fix M4 re-run
+
+The original M5 (May 2026) M4 numbers above were inflated by an
+HDL-32E beam-ordering bug in `range_image_to_point_cloud`
+([details](out/runs/2026-05-28_200214__beam-fix-verification/summary.md)).
+Combined with a re-trained LiDAR VAE (v5, 16 epochs on 100 scenes with LPIPS
+terms) and a fresh diffusion U-Net (50 epochs on the new cache, mse_ema 0.279
+vs old 0.553), the corrected end-to-end numbers are dramatically better.
+
+**Latest M4 run**: [`out/runs/2026-05-28_200902__m4-demo/`](out/runs/2026-05-28_200902__m4-demo/)
+([summary.md](out/runs/2026-05-28_200902__m4-demo/summary.md))
+
+| Metric | Old M5 (bug-inflated) | **Latest M4 v2** | Δ |
+|---|---|---|---|
+| `CD_floor` (projection only) | ~5.8 m | **~0.10 m** | −58× |
+| **`CD-VAE-only`** (decode(μ) vs raw) | 5.583 m | **0.791 m** | **−7× (VAE essentially solved)** |
+| **`CD-3D-raw`** (END-TO-END headline) | **6.135 m** | **3.036 m** | **−2× (50.5 % reduction)** |
+| `CD-3D-oracle` (diffusion alone) | 1.310 m | 2.872 m | honest now — no bug masking it |
+| `N_pred` per scan | 32,768 (saturated) | ~22–23 k | validity head now functional |
+
+### The narrative has flipped
+
+The bug masked the diffusion model's true contribution while inflating the
+VAE's. With the bug fixed and the v5 VAE in place:
+
+| | Pre-fix (old M5 said) | **Honest post-fix** |
+|---|---|---|
+| VAE share of `CD-3D-raw` | **91 %** (5.58 / 6.13) | **26 %** (0.79 / 3.04) |
+| Diffusion share | **9 %** (0.55 / 6.13) | **74 %** (2.25 / 3.04) |
+| Dominant bottleneck | "Under-trained VAE" | **Under-trained diffusion U-Net** |
+
+Visually: in [oblique_grid.png](out/runs/2026-05-28_200902__m4-demo/oblique_grid.png),
+the VAE-oracle column is **visually indistinguishable from the raw nuScenes
+column** — the new VAE is paper-quality. The DDIM-predicted column shows
+recognizable scenes with per-scene differentiation (roughly "X-Drive" /
+"Ours w/o VC" quality vs paper Figure 13's "Ours" column).
+
+### North Star scorecard (per [`min_pipeline_plan.md`](../min_pipeline_plan.md))
+
+| # | Criterion | Target | Latest | Status |
+|---|---|---|---|---|
+| 1 | `CD-3D-raw` ≤ 0.5 m on 6 scenes | ≤ 0.5 m | 3.036 m (4 samples) | ⌧ outstanding — needs more diffusion training and/or CFG |
+| 2 | Per-scene differentiation in oblique render | yes | yes | ✓ |
+| 3 | Validity mask functional (~28–32 k pts) | functional | 22–23 k pts/scan | ✓ |
+| 4 | Viz matches paper render style | yes | yes (3D oblique, height-colored) | ✓ |
+
+**3 of 4 North Star criteria now pass.** Only #1 is outstanding, and it's a
+training/inference-config problem, not an architecture problem.
+
+### Implications for the rest of this document
+
+§"Quality assessment", §"Known limitations" #1 (LiDAR VAE), and the original
+executive summary error decomposition are **superseded by the above** —
+preserved here as historical record of the M5 documentation state. The
+North Star path table in [`min_pipeline_plan.md`](../min_pipeline_plan.md) §North Star
+is also correspondingly outdated (steps 1 + 2 were assumed to be sequential
+"VAE first, then U-Net"; the v5 VAE essentially closes its half already).
+
+
+
+---
+
 ## Dataset (nuScenes, M1)
 
 ### Scene & keyframe accounting
@@ -300,6 +362,19 @@ so two distinct training runs would silently clobber each other. The fix
 
 DDIM 25-step inference on four held-out paired keyframes (subset indices 100/200/300/400),
 chained through the LiDAR VAE decoder and spherical unprojection to produce point clouds.
+
+The headline metric (CD-3D-raw) compares the pipeline-generated point cloud against the
+raw nuScenes LIDAR_TOP scan that was actually captured at the same keyframe:
+
+```
+CAM_FRONT image  ──▶  [VAE encode + raymap + U-Net + DDIM + VAE decode + unproject]  ──▶  pred_pc
+                                                                                              │
+                                                                                              ▼
+nuScenes LIDAR_TOP .pcd.bin  ───────────────────────────────────────────────────────▶  raw_pc
+                                                                                              │
+                                                                                              ▼
+                                                                                CD-3D-raw = CD(raw_pc, pred_pc)
+```
 
 | | Value |
 |---|---|

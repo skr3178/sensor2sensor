@@ -42,15 +42,17 @@ from eval.decode_to_pointcloud import (
     build_kv_context, decode_ground_truth, infer_one_sample,
     load_lidar_vae, load_unet,
 )
+from eval.oblique_viz import oblique_scatter
+from eval.runfolder import maintain_latest_symlink, new_run_folder
 from models.diffusion import DiffusionWrapper
 
-# Held-out sample indices (NOT in M3.1's overfit-10 range 0..9). Spread across the 401-sample subset.
+# Held-out sample indices. Spread across the 4023-sample v5 cache (100 scenes).
 HELD_OUT_IDX  = [100, 200, 300, 400]
-UNET_CKPT     = Path("s2s_min/out/lidar_unet_m32_best.pt")
-LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae.pt")
-CACHE_DIR     = Path("s2s_min/out/cached_latents")
+UNET_CKPT     = Path("s2s_min/out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/lidar_unet_best.pt")
+LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae.pt")  # symlink → v5 VAE (lidar_vae_best.pt)
+CACHE_DIR     = Path("s2s_min/out/cached_latents_v5_100scenes")
 NUSCENES_ROOT = Path("nuscenes")  # project-root symlink to the S2GO nuScenes dir
-OUT_DIR       = Path("s2s_min/out/m4_demo")
+LATEST_OUT_DIR = Path("s2s_min/out/m4_demo")  # stable path consumed by RESULTS.md / collect_results.py
 RANGE_M       = 60.0
 
 
@@ -94,8 +96,12 @@ def raw_lidar_for_sample(sample_token: str) -> np.ndarray:
 
 
 def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Write eval outputs INSIDE the U-Net checkpoint's training folder so each
+    # checkpoint shows its own evals alongside it. Layout:
+    #   <unet-train-folder>/m4_eval/<timestamp>__m4-demo/{bev_grid.png, oblique_grid.png, stats.txt, summary.md}
+    OUT_DIR = new_run_folder("m4-demo", parent=UNET_CKPT.resolve().parent / "m4_eval")
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"output folder: {OUT_DIR}")
     print(f"device: {device}")
 
     unet, unet_ckpt = load_unet(UNET_CKPT, device)
@@ -129,11 +135,15 @@ def main():
 
     cos_sims, cds_oracle, cds_xy_oracle, cds_raw, cds_vae = [], [], [], [], []
 
-    # ---- figure: 3 columns per sample (raw | VAE-oracle | DDIM-pred) ----
-    fig, axes = plt.subplots(len(HELD_OUT_IDX), 3,
-                              figsize=(11, 3 * len(HELD_OUT_IDX)))
+    # ---- figures: two 3-column grids (BEV + paper-style 3D oblique) ----
+    fig_bev, axes_bev = plt.subplots(len(HELD_OUT_IDX), 3,
+                                      figsize=(11, 3 * len(HELD_OUT_IDX)))
+    fig_obl, axes_obl = plt.subplots(len(HELD_OUT_IDX), 3,
+                                      figsize=(14, 3.6 * len(HELD_OUT_IDX)),
+                                      facecolor="black")
     if len(HELD_OUT_IDX) == 1:
-        axes = axes[None, :]
+        axes_bev = axes_bev[None, :]
+        axes_obl = axes_obl[None, :]
 
     for i, idx in enumerate(HELD_OUT_IDX):
         item = ds[idx]
@@ -171,24 +181,42 @@ def main():
             f"{raw_pc.shape[0]:>6d}  {cd_oracle['n_a']:>9d}  {cd_oracle['n_b']:>7d}  {dt:>5.2f}s"
         )
 
-        # paint into the figure: raw | oracle | predicted
-        bev_scatter(axes[i, 0], raw_pc,                color="tab:green", range_m=RANGE_M)
-        bev_scatter(axes[i, 1], oracle["point_cloud"], color="tab:blue",  range_m=RANGE_M)
-        bev_scatter(axes[i, 2], pred["point_cloud"],   color="tab:red",   range_m=RANGE_M)
-        axes[i, 0].set_ylabel(f"idx {idx}\n{sample_token[:24]}…", fontsize=6)
+        # paint into the BEV figure: raw | oracle | predicted
+        bev_scatter(axes_bev[i, 0], raw_pc,                color="tab:green", range_m=RANGE_M)
+        bev_scatter(axes_bev[i, 1], oracle["point_cloud"], color="tab:blue",  range_m=RANGE_M)
+        bev_scatter(axes_bev[i, 2], pred["point_cloud"],   color="tab:red",   range_m=RANGE_M)
+        axes_bev[i, 0].set_ylabel(f"idx {idx}\n{sample_token[:24]}…", fontsize=6)
         if i == 0:
-            axes[i, 0].set_title(f"raw nuScenes (N={raw_pc.shape[0]})", fontsize=9)
-            axes[i, 1].set_title(f"VAE-decoded GT (N={cd_oracle['n_a']})", fontsize=9)
-            axes[i, 2].set_title(f"DDIM-predicted (N={cd_oracle['n_b']})", fontsize=9)
+            axes_bev[i, 0].set_title(f"raw nuScenes (N={raw_pc.shape[0]})", fontsize=9)
+            axes_bev[i, 1].set_title(f"VAE-decoded GT (N={cd_oracle['n_a']})", fontsize=9)
+            axes_bev[i, 2].set_title(f"DDIM-predicted (N={cd_oracle['n_b']})", fontsize=9)
 
-    fig.suptitle(
-        f"M4: end-to-end DDIM 25-step inference on held-out samples\n"
+        # paint into the 3D oblique figure (paper Figure 13 style)
+        oblique_scatter(axes_obl[i, 0], raw_pc)
+        oblique_scatter(axes_obl[i, 1], oracle["point_cloud"])
+        oblique_scatter(axes_obl[i, 2], pred["point_cloud"])
+        axes_obl[i, 0].set_ylabel(f"idx {idx}", fontsize=8, color="white")
+        if i == 0:
+            axes_obl[i, 0].set_title(f"raw nuScenes (N={raw_pc.shape[0]})",     fontsize=9, color="white")
+            axes_obl[i, 1].set_title(f"VAE-decoded GT (N={cd_oracle['n_a']})",  fontsize=9, color="white")
+            axes_obl[i, 2].set_title(f"DDIM-predicted (N={cd_oracle['n_b']})",  fontsize=9, color="white")
+
+    fig_bev.suptitle(
+        f"M4: end-to-end DDIM 25-step inference on held-out samples (BEV)\n"
         f"checkpoint step={unet_ckpt.get('step', '?')}  loss_ema={unet_ckpt.get('loss_ema', float('nan')):.4f}  "
         f"BEV range ±{RANGE_M:.0f} m",
         fontsize=10,
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.savefig(OUT_DIR / "bev_grid.png", dpi=120, bbox_inches="tight")
+    fig_bev.tight_layout(rect=[0, 0, 1, 0.95])
+    fig_bev.savefig(OUT_DIR / "bev_grid.png", dpi=120, bbox_inches="tight")
+
+    fig_obl.suptitle(
+        f"M4: end-to-end DDIM inference — 3D oblique render (paper Figure 13 style)\n"
+        f"checkpoint step={unet_ckpt.get('step', '?')}  loss_ema={unet_ckpt.get('loss_ema', float('nan')):.4f}",
+        fontsize=10, color="white",
+    )
+    fig_obl.tight_layout(rect=[0, 0, 1, 0.95])
+    fig_obl.savefig(OUT_DIR / "oblique_grid.png", dpi=120, bbox_inches="tight", facecolor="black")
 
     mean_cos       = float(np.mean(cos_sims))
     mean_cd_oracle = float(np.mean(cds_oracle))
@@ -218,7 +246,14 @@ def main():
         print(r)
     (OUT_DIR / "stats.txt").write_text("\n".join(rows) + "\n")
     print(f"\nwrote {OUT_DIR / 'bev_grid.png'}")
+    print(f"wrote {OUT_DIR / 'oblique_grid.png'}")
     print(f"wrote {OUT_DIR / 'stats.txt'}")
+
+    # Keep s2s_min/out/m4_demo pointing at the latest run so RESULTS.md /
+    # collect_results.py still resolve. First time after this change, the
+    # pre-existing m4_demo/ directory is archived under runs/...-legacy-... .
+    maintain_latest_symlink(LATEST_OUT_DIR, OUT_DIR)
+    print(f"updated symlink: {LATEST_OUT_DIR} → {OUT_DIR}")
 
 
 if __name__ == "__main__":

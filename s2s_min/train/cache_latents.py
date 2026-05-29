@@ -54,10 +54,15 @@ from models.lidar_vae import LiDARVAE
 from models.raymap import build_raymap
 
 NUSCENES_ROOT  = Path("nuscenes")
-SUBSET_TOKENS  = Path("s2s_min/out/subset_scene_tokens.txt")
-LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae.pt")
-IMG_VAE_DIR    = Path("s2s_min/checkpoints/sd15_vae")
-OUT_DIR        = Path("s2s_min/out/cached_latents")
+DEFAULT_SUBSET_TOKENS  = Path("s2s_min/out/subset_scene_tokens.txt")
+DEFAULT_LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae_best.pt")
+IMG_VAE_DIR            = Path("s2s_min/checkpoints/sd15_vae")
+DEFAULT_OUT_DIR        = Path("s2s_min/out/cached_latents")
+
+# Overridable from CLI; module-level so the rest of the file keeps the old names.
+SUBSET_TOKENS  = DEFAULT_SUBSET_TOKENS
+LIDAR_VAE_CKPT = DEFAULT_LIDAR_VAE_CKPT
+OUT_DIR        = DEFAULT_OUT_DIR
 IMG_H, IMG_W   = 256, 448
 NATIVE_W, NATIVE_H = 1600, 900
 SD_DOWNSAMPLE  = 8
@@ -134,7 +139,19 @@ def main():
                         help="Only cache the first N samples (for debugging).")
     parser.add_argument("--overwrite", action="store_true",
                         help="Re-encode samples whose .npz already exists. Default: skip.")
+    parser.add_argument("--subset_file", type=Path, default=DEFAULT_SUBSET_TOKENS,
+                        help="Newline-delimited scene-token file. Defaults to the 10-scene M1 list.")
+    parser.add_argument("--lidar_ckpt", type=Path, default=DEFAULT_LIDAR_VAE_CKPT,
+                        help="Path to frozen LiDAR VAE checkpoint (defaults to lidar_vae_best.pt symlink).")
+    parser.add_argument("--out_dir", type=Path, default=DEFAULT_OUT_DIR,
+                        help="Directory where the per-sample .npz files and MANIFEST.json are written.")
     args = parser.parse_args()
+
+    # Apply CLI overrides to the module-level constants used elsewhere in this file.
+    global SUBSET_TOKENS, LIDAR_VAE_CKPT, OUT_DIR
+    SUBSET_TOKENS  = args.subset_file
+    LIDAR_VAE_CKPT = args.lidar_ckpt
+    OUT_DIR        = args.out_dir
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"

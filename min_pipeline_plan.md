@@ -1,5 +1,84 @@
 # Minimum Sensor2Sensor Test Pipeline — Implementation Plan
 
+## North Star — the end goal beyond M-1…M5
+
+> **Given a single CAM_FRONT image from a held-out nuScenes keyframe, the pipeline produces a LiDAR point cloud whose 3D oblique rendering is visually comparable to the "Ours" column of [Figure 13](paper_figures/subfigures/Figure13.png) / [13a](paper_figures/subfigures/Figure13a.png) / [13b](paper_figures/subfigures/Figure13b.png) — across ≥ 6 diverse scenes — with CD-3D-raw in the 0.1–0.5 m range.**
+
+The five-milestone minimum pipeline (M-1 → M5) validated that this is *architecturally possible*
+on a 12 GB RTX 3060: pipeline runs end-to-end, gradients flow, raymap geometry is correct
+(0.465° mean angular error), DDIM converges, no memorization gap. The remaining gap to the
+North Star is **training budget + inference config**, not architecture.
+
+### What "comparable to Figure 13 / 13a / 13b" means concretely
+
+Across the three figures, the "Ours" column shows six diverse scenes (parking lot,
+intersection, highway, urban) rendered as **3D oblique perspective point clouds, colored by
+height**, with these recurring qualitative properties:
+
+- **Dense, structured** point clouds — recognizable cars, road plane, buildings
+- **Per-scene differentiation** — output matches the input image's scene content
+- **Sharp object placement** — vehicles where the image shows vehicles (highlighted by yellow boxes in the figures)
+- **Quiet background** — minimal noise off-road
+
+### Success criteria (four measurable bars)
+
+| # | Criterion | How measured | Target |
+|---|---|---|---|
+| 1 | End-to-end Chamfer is in paper territory | `CD-3D-raw` from [run_m4_demo.py](s2s_min/scripts/run_m4_demo.py) on a 6-scene held-out set | **≤ 0.5 m mean** (paper: ~0.1–0.2 m) |
+| 2 | Per-scene differentiation visible | Eyeball check of the 3D oblique render across the 6 scenes | Different inputs produce visibly different outputs |
+| 3 | Validity mask functional | Predicted point count per sample | ~28–32 k points (not all 32,768 saturated) |
+| 4 | Viz matches paper's render style | 3D oblique perspective render, height-colored, with optional object-region boxes | Visually comparable to the figures (reviewer eyeball test) |
+
+### What CD-3D-raw measures (the headline metric)
+
+The criterion-#1 metric is `CD-3D-raw` — the bidirectional Chamfer distance, in 3D and in
+meters, between (a) the point cloud our pipeline generates from a single CAM_FRONT image
+and (b) the raw nuScenes LIDAR_TOP scan that was actually captured at the same keyframe:
+
+```
+CAM_FRONT image  ──▶  [VAE encode + raymap + U-Net + DDIM + VAE decode + unproject]  ──▶  pred_pc
+                                                                                              │
+                                                                                              ▼
+nuScenes LIDAR_TOP .pcd.bin  ───────────────────────────────────────────────────────▶  raw_pc
+                                                                                              │
+                                                                                              ▼
+                                                                                CD-3D-raw = CD(raw_pc, pred_pc)
+```
+
+`CD-3D-raw` is the only one of the four Chamfer variants that answers the user-facing
+question *"how close is the generated LiDAR to the real LiDAR?"*. The other three are
+diagnostics that decompose the error: `CD-VAE-only` is the floor set by the VAE
+bottleneck, `CD-3D-oracle` isolates the diffusion contribution (VAE error cancels), and
+`CD-BEV-oracle` further drops the elevation axis to isolate planar geometry. See
+[`s2s_min/RESULTS.md`](s2s_min/RESULTS.md) §M4 for the full decomposition and the
+current numbers.
+
+### Path from where we are now to the North Star
+
+Current state (M5): `CD-3D-raw = 6.135 m`, `CD-VAE-only = 5.583 m`, diffusion delta `+0.552 m`.
+The error decomposition tells us exactly where to invest, and in what order:
+
+| Step | What | Addresses | Expected `CD-3D-raw` after |
+|---|---|---|---|
+| 0 | M-1 → M5 (done — minimum pipeline validated) | Architecture | 6.135 m baseline |
+| 1 | **LiDAR VAE retrain on larger dataset + LPIPS/normal terms** (in progress) | Criterion #1 (VAE bottleneck = 91% of error), #3 (validity head BCE ≈ 0.5 random) | ~1–2 m (5× drop expected, VAE → paper territory) |
+| 2 | **U-Net retrain against the new VAE** (5 epochs → 50–100 epochs) | Criterion #1 (diffusion delta), #2 (magnitude undershoot, weak conditioning) | ~0.5–1.0 m |
+| 3 | **Classifier-free guidance at inference** (`--cond_dropout 0.2` training hook already in place — ~30 LOC in `decode_to_pointcloud.py`) | Criterion #2 (sharpness, per-scene differentiation) | ~0.3–0.6 m (10–20 % improvement) |
+| 4 | **3D oblique perspective renderer** (~80 LOC, matplotlib `mpl_toolkits.mplot3d`) | Criterion #4 (viz style match) | No CD change; closes the eyeball-comparison gap |
+| 5 | (optional) Scope-B: 6-camera input + paper-faithful cross-sensor self-attn | All criteria, closes last gap to paper | ~0.1–0.3 m (3060 budget permitting) |
+
+Steps 1–4 are achievable on the 3060 with no architectural changes. Step 5 is the
+follow-on plan from §"Scope options (B)" if reaching the paper's exact numbers becomes a priority.
+
+### Why this section exists
+
+To survive session compaction. If a future Claude session picks up this repo, the
+North Star + four criteria + path table give it the same orientation a human reader
+gets from looking at Figure 13. The minimum pipeline (M-1 → M5) is *complete*; this
+section is the durable artifact describing what comes next.
+
+---
+
 ## Context
 
 **Why this plan exists.** [implementation.md](/media/skr/storage/self_driving/sensor2sensor/implementation.md) describes a full small-scale reproduction (weeks of training, Phase 0 → Phase 3). The user wants to go one step earlier: get the *thinnest viable version* of the paper's core methodology — conditional monocular‑camera → LiDAR latent diffusion — running end-to-end on a single 12 GB RTX 3060, on nuScenes mini, so the architecture itself can be validated before any serious training budget is spent.

@@ -117,8 +117,11 @@ def range_image_to_point_cloud(
     assert img.shape == (3, H, W), f"Expected [3, {H}, {W}], got {img.shape}"
 
     if elevations_deg is None:
-        # HDL-32E nominal FoV; replace with the per-beam table for exact roundtrip.
-        elevations_deg = np.linspace(10.67, -30.67, H, dtype=np.float32)
+        # HDL-32E: laser ID 0 is the BOTTOM beam (-30.67°), laser ID 31 the TOP (+10.67°).
+        # `point_cloud_to_range_image` writes ring_index directly to `row`, so row 0 = laser 0 = bottom.
+        # The previous direction (`linspace(10.67, -30.67)`) was reversed → unprojection garbled
+        # elevation by up to ~41°, inflating round-trip Chamfer to ~6 m on a 32×1024 grid.
+        elevations_deg = np.linspace(-30.67, 10.67, H, dtype=np.float32)
 
     mask = img[2] > 0.5
     rows, cols = np.nonzero(mask)

@@ -344,21 +344,38 @@ Reproduce with `python s2s_min/scripts/select_subset.py`. Scale up by passing `-
 
 ## 8. M1 training results
 
-### 8.1 Three runs comparison
+### 8.1 Five runs comparison
 
-| | v1 | v2 | **v3 (committed)** |
-|---|---|---|---|
-| `λ_range` | 1 | 50 | 50 |
-| LR schedule | constant | constant | **cosine + 200-step warmup** |
-| EMA(0.999) shadow | none | enabled | enabled |
-| Best-ckpt save | none | enabled | enabled |
-| Wall-clock | 9.1 min | 9.4 min | **9.4 min** |
-| Peak VRAM | 446 MiB | 446 MiB | **446 MiB** |
-| Best `l1_range_ema` | ~0.015 (not saved) | 0.01147 | **0.01116** (step ~900) |
-| Divergence step | ~2000 (epoch 40) | ~1000 (epoch 20) | ~1100 (epoch 21) |
-| Final `l1_range_ema` | 0.188 | 0.030 | 0.066 |
+| | v1 | v2 | v3 | v4 | **v5 (committed)** |
+|---|---|---|---|---|---|
+| Scenes | 10 | 10 | 10 | 10 | **100** |
+| Keyframes | 401 | 401 | 401 | 401 | **4 023** |
+| `λ_range` | 1 | 50 | 50 | 50 | 50 |
+| LPIPS terms | ✗ | ✗ | ✗ | ✓ | ✓ |
+| LR schedule | constant | constant | cosine | cosine | cosine |
+| EMA(0.999) shadow | none | enabled | enabled | enabled | enabled |
+| Best-ckpt save | none | enabled | enabled | enabled | enabled |
+| Batch × grad-accum | 2 × 4 | 2 × 4 | 2 × 4 | 2 × 4 | **8 × 2** |
+| Effective batch | 8 | 8 | 8 | 8 | **16** |
+| Total optim steps | 2 513 | 2 513 | 2 513 | 2 513 | **4 024** |
+| Wall-clock | 9.1 min | 9.4 min | 9.4 min | 21 min | **55 min** |
+| Peak VRAM | 446 MiB | 446 MiB | 446 MiB | 1.2 GB | **3.8 GB** |
+| Best `l1_range_ema` | ~0.015 (lost) | 0.01147 | 0.01116 | **0.00656** | **0.00664** |
+| Final `l1_range_ema` | 0.188 ❌ | 0.030 ❌ | 0.066 ❌ | **0.00667** ✓ | **0.00673** ✓ |
+| Divergence step | ~2 000 | ~950 | ~1 050 | **none** | **none** |
+| Final ckpt usable? | ✗ (diverged) | ✗ (diverged) | ✗ (diverged) | ✓ | ✓ |
+| VAE_delta on held-out | — | — | — | — | **0.170 m** ⭐ |
 
-Full loss curves: [../out/loss_comparison.png](../out/loss_comparison.png). Re-render with `python s2s_min/scripts/plot_train_runs.py`. Per-step logs in [`../out/train_vae_epoch50{,_v2,_v3}.log`](../out).
+Three milestones in the table:
+- **v3 → v4**: divergence fix. Adding the three LPIPS terms regularized the BCE_validity saturation that broke v1-v3.
+- **v4 → v5**: scale-up validation. 10× more data + 2× larger effective batch preserved per-sample quality (best `l1_range_ema` essentially tied) and produced the first held-out generalization signal.
+- **v5 → next**: the only remaining gap to RangeLDM's published ~0.01-0.02 m VAE-only Chamfer is data scale × training duration, not architecture.
+
+Full loss curves: [../out/loss_comparison.png](../out/loss_comparison.png) (latest global render), or
+[../out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_comparison.png](../out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_comparison.png) (snapshot
+at v5 completion). Re-render with `python s2s_min/scripts/plot_train_runs.py`. Per-step
+logs: `out/train_vae_epoch50{,_v2,_v3}.log`, `out/train_vae_epoch50_v4_lpips.log`,
+`out/train_vae_v5_nohup.log`.
 
 ### 8.2 The divergence pattern (a bug we didn't fix)
 

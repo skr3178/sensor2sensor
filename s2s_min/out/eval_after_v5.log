@@ -1,0 +1,102 @@
+[eval_after] waiting for PID 488841 to exit (poll every 30s)...
+[eval_after] PID 488841 exited after 0s.
+[eval_after] $ /media/skr/storage/self_driving/sensor2sensor/env/bin/python s2s_min/scripts/plot_train_runs.py --out /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_comparison.png --out_solo /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots
+v1 (λ_range=1, constant LR, no EMA): 51 log points; metrics = ['BCE_validity', 'KL', 'L1_intensity', 'L1_range', 'total']
+v2 (λ_range=50, constant LR, EMA): 51 log points; metrics = ['BCE_validity', 'KL', 'L1_intensity', 'L1_range', 'l1r_ema', 'total']
+v3 (λ_range=50, cosine LR, EMA): 51 log points; metrics = ['BCE_validity', 'KL', 'L1_intensity', 'L1_range', 'l1r_ema', 'total']
+v4 (v3 + 3 LPIPS terms, 10 scenes): 51 log points; metrics = ['BCE_validity', 'KL', 'L1_intensity', 'L1_range', 'LPIPS_intensity', 'LPIPS_normals', 'LPIPS_validity', 'l1r_ema', 'total']
+v5 (v4 + 100 scenes, batch16): 81 log points; metrics = ['BCE_validity', 'KL', 'L1_intensity', 'L1_range', 'LPIPS_intensity', 'LPIPS_normals', 'LPIPS_validity', 'l1r_ema', 'total']
+
+wrote combined: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_comparison.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/total.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/L1_range.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/L1_intensity.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/BCE_validity.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/KL.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/LPIPS_normals.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/LPIPS_intensity.png
+wrote standalone: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/loss_plots/LPIPS_validity.png
+
+[eval_after] $ /media/skr/storage/self_driving/sensor2sensor/env/bin/python s2s_min/scripts/visualize_lidar_vae.py --ckpt /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt --out_dir /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval
+loading checkpoint /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt ...
+  step:   3933
+  config: {'in_channels': 3, 'latent_channels': 8, 'base_channels': 32, 'lam_range': 50.0, 'lam_intensity': 1.0, 'lam_validity': 1.0, 'lam_kl': 1e-06, 'lam_lpips_normals': 1.0, 'lam_lpips_intensity': 1.0, 'lam_lpips_validity': 1.0, 'lpips_net': 'vgg', 'ema_decay': 0.999, 'lr': 0.0004, 'lr_min': 4e-06, 'lr_warmup_steps': 200, 'lr_schedule': 'cosine'}
+  arch kwargs (filtered): {'in_channels': 3, 'latent_channels': 8, 'base_channels': 32}
+  params: 2.07 M
+
+using 4 LIDAR_TOP samples:
+  n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.pcd.bin
+  n015-2018-07-24-10-42-41+0800__LIDAR_TOP__1532400184697364.pcd.bin
+  n008-2018-08-01-15-52-19-0400__LIDAR_TOP__1533153403297326.pcd.bin
+  n015-2018-08-01-15-10-21+0800__LIDAR_TOP__1533107659547179.pcd.bin
+
+input range_imgs: (4, 3, 32, 1024)  dtype=torch.float32
+latent mu       : (4, 8, 8, 256)  mean=+0.177  std=0.944
+latent logvar   : (4, 8, 8, 256)  mean=-10.053  std=0.951
+recon            : (4, 3, 32, 1024)  dtype=torch.float32
+
+checkpoint     : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt
+step           : 3933
+arch kwargs    : {'in_channels': 3, 'latent_channels': 8, 'base_channels': 32}
+params         : 2.07 M
+input shape    : (4, 3, 32, 1024)  (range/intensity/validity in [0, 1], fp32)
+latent mu      : (4, 8, 8, 256)  mean=+0.177  std=0.944
+latent logvar  : (4, 8, 8, 256)  mean=-10.053  std=0.951
+recon shape    : (4, 3, 32, 1024)
+
+per-sample reconstruction (lower = better; L1_range_m back-scaled to meters):
+  name                                                          L1_range_m  L1_intens  BCE_valid  valid_acc
+  n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.p       1.027     0.0391     0.1391      0.940
+  n015-2018-07-24-10-42-41+0800__LIDAR_TOP__1532400184697364.p       1.080     0.0296     0.1226      0.946
+  n008-2018-08-01-15-52-19-0400__LIDAR_TOP__1533153403297326.p       0.952     0.0217     0.0781      0.968
+  n015-2018-08-01-15-10-21+0800__LIDAR_TOP__1533107659547179.p       1.146     0.0457     0.1286      0.945
+  MEAN                                                               1.051     0.0340     0.1171      0.950
+
+wrote /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/samples.png
+wrote /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/stats.txt
+s2s_min/scripts/visualize_lidar_vae.py:220: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout(rect=[0, 0, 1, 0.96])
+
+[eval_after] $ /media/skr/storage/self_driving/sensor2sensor/env/bin/python s2s_min/scripts/vae_chamfer_eval.py --ckpt /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt --out_json /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/chamfer.json
+==============================================================================
+VAE-only round-trip Chamfer eval
+==============================================================================
+  checkpoint    : /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/lidar_vae_best.pt
+  nuscenes_root : /media/skr/storage/self_driving/sensor2sensor/nuscenes
+  device        : cuda
+  step          : 3933
+  l1_range_ema  : 0.006641737349133663
+  arch kwargs   : {'in_channels': 3, 'latent_channels': 8, 'base_channels': 32}
+  params        : 2.07 M
+  total LIDAR_TOP keyframes : 34149
+  scenes in subset (train)  : 10
+  scenes outside (held-out) : 840
+  picked: 4 training + 4 held-out
+
+  split        n_raw  n_proj   n_vae    CD_floor  CD_roundtrip  VAE_delta  file
+  train        34654   28159   28434       6.103         6.248      0.145  n015-2018-07-18-11-41-49+0800__LIDAR_TOP__1531885418048938.pcd.bin
+  train        34687   27454   27392       5.648         5.657      0.009  n008-2018-08-22-15-53-49-0400__LIDAR_TOP__1534968251147433.pcd.bin
+  train        34751   27079   27218       5.237         5.412      0.175  n008-2018-08-31-11-19-57-0400__LIDAR_TOP__1535728854947706.pcd.bin
+  train        34719   28349   28556       6.316         6.460      0.144  n015-2018-10-08-15-44-23+0800__LIDAR_TOP__1538985030397925.pcd.bin
+  held-out     34624   28787   28919       5.740         5.946      0.206  n015-2018-08-02-17-28-51+0800__LIDAR_TOP__1533202377949440.pcd.bin
+  held-out     34527   29250   29405       6.980         7.127      0.147  n015-2018-09-27-15-33-17+0800__LIDAR_TOP__1538033852797877.pcd.bin
+  held-out     34688   26574   26597       5.235         5.379      0.144  n008-2018-08-06-15-06-32-0400__LIDAR_TOP__1533582534697911.pcd.bin
+  held-out     34720   24779   24941       4.233         4.417      0.184  n008-2018-08-27-11-48-51-0400__LIDAR_TOP__1535385032648954.pcd.bin
+  (evaluated in 3.3s)
+
+==============================================================================
+  group        CD_floor (m)   CD_roundtrip (m)   VAE_delta (m)
+  train               5.826              5.944           0.118
+  held_out            5.547              5.717           0.170
+==============================================================================
+
+Interpretation:
+  - CD_floor      = lossy projection alone (raw → range image → raw). Independent of the VAE.
+  - CD_roundtrip  = the same path, but through the VAE encode + decode in between.
+  - VAE_delta     = how much *extra* error the VAE introduces. ← compare against RangeLDM ~0.01–0.02 m.
+  - held_out      = scenes the model has never seen during training (true generalization signal).
+
+wrote: /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval/chamfer.json
+
+[eval_after] wrote /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/summary.md
+[eval_after] done. artifacts in /media/skr/storage/self_driving/sensor2sensor/s2s_min/out/runs/2026-05-28_142002__v5-100scenes-bs16-lpips-nohup/eval
