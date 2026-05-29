@@ -46,8 +46,10 @@ from eval.oblique_viz import oblique_scatter
 from eval.runfolder import maintain_latest_symlink, new_run_folder
 from models.diffusion import DiffusionWrapper
 
-# Held-out sample indices. Spread across the 4023-sample v5 cache (100 scenes).
-HELD_OUT_IDX  = [100, 200, 300, 400]
+# Held-out sample indices, evenly spread across the 4023-sample v5 cache.
+# 16 samples gives ±4× tighter standard error on the headline CD than the original 4.
+HELD_OUT_IDX  = [100, 353, 606, 860, 1113, 1366, 1620, 1873,
+                 2126, 2380, 2633, 2886, 3140, 3393, 3646, 3900]
 UNET_CKPT     = Path("s2s_min/out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/lidar_unet_best.pt")
 LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae.pt")  # symlink → v5 VAE (lidar_vae_best.pt)
 CACHE_DIR     = Path("s2s_min/out/cached_latents_v5_100scenes")
@@ -136,12 +138,13 @@ def main():
     cos_sims, cds_oracle, cds_xy_oracle, cds_raw, cds_vae = [], [], [], [], []
 
     # ---- figures: two 3-column grids (BEV + paper-style 3D oblique) ----
-    fig_bev, axes_bev = plt.subplots(len(HELD_OUT_IDX), 3,
-                                      figsize=(11, 3 * len(HELD_OUT_IDX)))
-    fig_obl, axes_obl = plt.subplots(len(HELD_OUT_IDX), 3,
-                                      figsize=(14, 3.6 * len(HELD_OUT_IDX)),
-                                      facecolor="black")
-    if len(HELD_OUT_IDX) == 1:
+    # Per-row heights shrink when N is large so the PNG stays viewable.
+    n = len(HELD_OUT_IDX)
+    bev_row_h = 3.0 if n <= 6 else 1.8
+    obl_row_h = 3.6 if n <= 6 else 2.2
+    fig_bev, axes_bev = plt.subplots(n, 3, figsize=(11, bev_row_h * n))
+    fig_obl, axes_obl = plt.subplots(n, 3, figsize=(14, obl_row_h * n), facecolor="black")
+    if n == 1:
         axes_bev = axes_bev[None, :]
         axes_obl = axes_obl[None, :]
 
