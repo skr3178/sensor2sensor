@@ -37,6 +37,15 @@ sys.path.insert(0, str(S2S_DIR))
 
 import torch
 import torch.nn.functional as F
+
+# PyTorch's internal flash SDPA kernel has an `is_sm80` check that fails on
+# RTX 3060 (sm_86, technically newer but trips the hardcoded check). Disable
+# it so we fall back to mem-efficient SDPA, which works on sm_75+.
+# Verified: 60M model forward+backward runs cleanly after this.
+# Remove once we either upgrade PyTorch to 2.1+ or swap in the external
+# flash-attn library directly.
+if torch.cuda.is_available():
+    torch.backends.cuda.enable_flash_sdp(False)
 from torch.utils.data import DataLoader, Subset
 
 from data.cached_latents import CachedLatentsDataset
@@ -134,6 +143,17 @@ def main():
                    default=S2S_DIR / "out" / "lidar_unet.pt")
     p.add_argument("--no_amp", action="store_true",
                    help="disable mixed precision (default: fp16 on CUDA).")
+    # U-Net architecture knobs (forwarded to LiDARUNet). Defaults reproduce the
+    # legacy 3-stage (96, 192, 384) ~14.81 M config bitwise (back-compat verified
+    # via tests/test_unet_nstage_regression.py).
+    p.add_argument("--stem_channels", type=int, default=96,
+                   help="stem conv output channels. Wider stem = wider every level.")
+    p.add_argument("--level_channels", type=int, nargs="+", default=[96, 192, 384],
+                   metavar="C",
+                   help="channels per U-Net level (last entry = bottleneck width). "
+                        "3 entries → 3-stage; 4 entries → 4-stage paper-match. "
+                        "Phase-1 target: 192 384 768 (~60M). Phase-4 target: "
+                        "160 320 640 1024 (~125M).")
     args = p.parse_args()
 
     if args.steps == 0 and args.epochs == 0:
@@ -182,9 +202,14 @@ def main():
     )
 
     # ----- model + diffusion -----
-    unet = LiDARUNet().to(device)
+    unet = LiDARUNet(
+        stem_channels=args.stem_channels,
+        level_channels=tuple(args.level_channels),
+    ).to(device)
     unet.train()
     n_params = count_params(unet)
+    print(f"  U-Net arch              : stem={args.stem_channels}, "
+          f"levels={tuple(args.level_channels)} ({len(args.level_channels)}-stage)")
     print(f"  U-Net params            : {n_params/1e6:.2f} M")
     diffusion = DiffusionWrapper()
     print(f"  diffusion               : {diffusion.prediction_type}, "
@@ -288,9 +313,11 @@ def main():
         return {
             "step": step,
             "config": {
-                # U-Net architecture defaults (LiDARUNet's __init__ defaults).
-                "in_channels": 8, "out_channels": 8, "stem_channels": 96,
-                "level_channels": [96, 192, 384], "num_res_blocks": 2,
+                # U-Net architecture (from CLI; defaults reproduce legacy 3-stage).
+                "in_channels": 8, "out_channels": 8,
+                "stem_channels": args.stem_channels,
+                "level_channels": list(args.level_channels),
+                "num_res_blocks": 2,
                 "kv_channels": 10, "num_heads": 8,
                 # Diffusion + training settings.
                 "prediction_type": diffusion.prediction_type,

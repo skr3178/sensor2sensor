@@ -25,6 +25,9 @@ s2s_min/out/cached_latents_*/
 s2s_min/out/runs/
 s2s_min/out/latest_run
 
+# Convenience symlink into the gitignored runs/ tree — broken on clone
+s2s_min/out/m4_demo
+
 # Transient process / scratch files
 s2s_min/out/*.pid
 /todo

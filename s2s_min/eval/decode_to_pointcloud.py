@@ -44,8 +44,21 @@ def build_kv_context(image_latent: torch.Tensor, raymap: torch.Tensor) -> torch.
 
 
 def load_unet(ckpt_path: Path, device: str) -> tuple[LiDARUNet, dict]:
+    """Load a U-Net checkpoint, honoring arch fields in the saved `config` dict.
+
+    Back-compat: legacy checkpoints (pre-N-stage refactor) either omit
+    `stem_channels`/`level_channels` or carry the hardcoded 3-stage defaults.
+    Both cases work — defaults reproduce the legacy 3-stage build, and
+    `LiDARUNet._load_from_state_dict` translates the old `enc_l*` / `dec_l*`
+    state-dict keys to `encoders.N` / `decoders.N` automatically.
+    """
     ckpt = torch.load(ckpt_path, map_location=device)
-    unet = LiDARUNet().to(device).eval()
+    arch_keys = set(inspect.signature(LiDARUNet.__init__).parameters)
+    cfg = ckpt.get("config", {})
+    arch_kwargs = {k: v for k, v in cfg.items() if k in arch_keys}
+    if "level_channels" in arch_kwargs:
+        arch_kwargs["level_channels"] = tuple(arch_kwargs["level_channels"])
+    unet = LiDARUNet(**arch_kwargs).to(device).eval()
     unet.load_state_dict(ckpt["state_dict"])
     unet.requires_grad_(False)
     return unet, ckpt

@@ -51,7 +51,7 @@ from models.diffusion import DiffusionWrapper
 # 16 samples gives ±4× tighter standard error on the headline CD than the original 4.
 HELD_OUT_IDX  = [100, 353, 606, 860, 1113, 1366, 1620, 1873,
                  2126, 2380, 2633, 2886, 3140, 3393, 3646, 3900]
-UNET_CKPT     = Path("s2s_min/out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/lidar_unet_best.pt")
+UNET_CKPT     = Path("s2s_min/out/runs/2026-05-29_123644__m3-unet-60M-capacity-test/lidar_unet_best.pt")
 LIDAR_VAE_CKPT = Path("s2s_min/out/lidar_vae.pt")  # symlink → v5 VAE (lidar_vae_best.pt)
 CACHE_DIR     = Path("s2s_min/out/cached_latents_v5_100scenes")
 NUSCENES_ROOT = Path("nuscenes")  # project-root symlink to the S2GO nuScenes dir

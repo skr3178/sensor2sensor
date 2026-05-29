@@ -183,11 +183,18 @@ class LiDARUNet(nn.Module):
               → UpW → cat(skip_1) → Dec L1 (8×128) → UpW → cat(skip_0) → Dec L0 (8×256)
               → head
 
+    `level_channels` is variable-length: `N = len(level_channels)` encoder/decoder
+    pairs (the last `level_channels` entry sets the bottleneck width). N=3 reproduces
+    the original 3-stage default; N=4 is the paper-match config (160, 320, 640, 1024).
+    See `Unet_scaled.md` for the data-flow diagram of both shapes.
+
     Args:
         in_channels:        latent channels in (default 8 — matches LiDAR VAE).
         out_channels:       latent channels out (default 8 — predicts v or eps).
         stem_channels:      output of the stem conv (default 96).
-        level_channels:     channels per level [L0, L1, bottleneck] (default [96, 192, 384]).
+        level_channels:     channels per level (default (96, 192, 384) → 3 stages).
+                            Last entry = bottleneck width; everything before = encoder
+                            level widths. N stages = (N-1) encoders + bottleneck + (N-1) decoders.
         num_res_blocks:     ResBlock count per level (default 2).
         kv_channels:        channels of the pre-pooled KV context (default 10 = 4 image + 6 raymap).
         num_heads:          attention head count (default 8).
@@ -201,7 +208,7 @@ class LiDARUNet(nn.Module):
         in_channels: int = 8,
         out_channels: int = 8,
         stem_channels: int = 96,
-        level_channels: tuple[int, int, int] = (96, 192, 384),
+        level_channels: tuple[int, ...] = (96, 192, 384),
         num_res_blocks: int = 2,
         kv_channels: int = 10,
         num_heads: int = 8,
@@ -210,8 +217,9 @@ class LiDARUNet(nn.Module):
         groupnorm_groups: int = 32,
     ):
         super().__init__()
-        assert len(level_channels) == 3, "Expected 3 entries: [L0, L1, bottleneck]"
-        ch_l0, ch_l1, ch_btl = level_channels
+        level_channels = tuple(level_channels)
+        n_levels = len(level_channels)
+        assert n_levels >= 2, f"need at least 2 levels (1 encoder + bottleneck), got {n_levels}"
 
         # Time conditioning dims.
         self.t_emb_in_dim = t_emb_in_dim or stem_channels
@@ -221,66 +229,106 @@ class LiDARUNet(nn.Module):
         # Stem.
         self.stem = CircularConv2d(in_channels, stem_channels, kernel_size=3)
 
-        # Encoder.
-        self.enc_l0 = EncoderLevel(
-            in_ch=stem_channels,
-            out_ch=ch_l0,
-            kv_channels=kv_channels,
-            num_res_blocks=num_res_blocks,
-            num_heads=num_heads,
-            do_downsample=True,
-            t_emb_dim=self.t_emb_dim,
-            return_skip=True,
-        )
-        self.enc_l1 = EncoderLevel(
-            in_ch=ch_l0,
-            out_ch=ch_l1,
-            kv_channels=kv_channels,
-            num_res_blocks=num_res_blocks,
-            num_heads=num_heads,
-            do_downsample=True,
-            t_emb_dim=self.t_emb_dim,
-            return_skip=True,
-        )
+        # Encoders: one per non-bottleneck level, in shallow-to-deep order.
+        # encoders[i].in_ch = stem_channels (i=0) else level_channels[i-1]
+        # encoders[i].out_ch = level_channels[i]
+        # Construction order matches the original (enc_l0 before enc_l1) so
+        # seeded random init is preserved for the N=3 default.
+        self.encoders = nn.ModuleList([
+            EncoderLevel(
+                in_ch=(stem_channels if i == 0 else level_channels[i - 1]),
+                out_ch=level_channels[i],
+                kv_channels=kv_channels,
+                num_res_blocks=num_res_blocks,
+                num_heads=num_heads,
+                do_downsample=True,
+                t_emb_dim=self.t_emb_dim,
+                return_skip=True,
+            )
+            for i in range(n_levels - 1)
+        ])
 
-        # Bottleneck.
+        # Bottleneck (the last level): no down/upsample, deepest channel width.
         self.bottleneck = Bottleneck(
-            in_ch=ch_l1,
-            out_ch=ch_btl,
+            in_ch=level_channels[-2],
+            out_ch=level_channels[-1],
             kv_channels=kv_channels,
             num_res_blocks=num_res_blocks,
             num_heads=num_heads,
             t_emb_dim=self.t_emb_dim,
         )
 
-        # Decoder.
-        self.dec_l1 = DecoderLevel(
-            in_ch=ch_btl,
-            skip_ch=ch_l1,
-            out_ch=ch_l1,
-            kv_channels=kv_channels,
-            num_res_blocks=num_res_blocks,
-            num_heads=num_heads,
-            do_upsample=True,
-            t_emb_dim=self.t_emb_dim,
-        )
-        self.dec_l0 = DecoderLevel(
-            in_ch=ch_l1,
-            skip_ch=ch_l0,
-            out_ch=ch_l0,
-            kv_channels=kv_channels,
-            num_res_blocks=num_res_blocks,
-            num_heads=num_heads,
-            do_upsample=True,
-            t_emb_dim=self.t_emb_dim,
-        )
+        # Decoders: mirror of encoders in deep-to-shallow order so decoders[0]
+        # consumes the bottleneck output, decoders[1] consumes decoders[0]'s output, etc.
+        # decoders[i] sees in_ch = level_channels[-1 - i]  (prev stage output),
+        # skip_ch = level_channels[-2 - i] (matching encoder's skip),
+        # out_ch  = level_channels[-2 - i] (match next decoder's expected in_ch).
+        # Construction order: dec_l1 first, dec_l0 second — matches original.
+        self.decoders = nn.ModuleList([
+            DecoderLevel(
+                in_ch=level_channels[-1 - i],
+                skip_ch=level_channels[-2 - i],
+                out_ch=level_channels[-2 - i],
+                kv_channels=kv_channels,
+                num_res_blocks=num_res_blocks,
+                num_heads=num_heads,
+                do_upsample=True,
+                t_emb_dim=self.t_emb_dim,
+            )
+            for i in range(n_levels - 1)
+        ])
 
         # Head: GN → SiLU → CircConv. Zero-init the final conv so the fresh
         # U-Net predicts ε ≈ 0 on the first forward, giving a stable starting loss.
-        self.head_norm = nn.GroupNorm(min(groupnorm_groups, ch_l0), ch_l0)
-        self.head_conv = CircularConv2d(ch_l0, out_channels, kernel_size=3)
+        ch_finest = level_channels[0]
+        self.head_norm = nn.GroupNorm(min(groupnorm_groups, ch_finest), ch_finest)
+        self.head_conv = CircularConv2d(ch_finest, out_channels, kernel_size=3)
         nn.init.zeros_(self.head_conv.conv.weight)
         nn.init.zeros_(self.head_conv.conv.bias)
+
+    # ---- back-compat: translate old 3-stage state_dict keys (enc_l0/enc_l1/dec_l0/dec_l1) ----
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Translate legacy hardcoded-3-stage checkpoints (`enc_l0.*`, etc.) to
+        the new N-stage key namespace (`encoders.0.*`, etc.) on load.
+
+        Called automatically by `nn.Module.load_state_dict`. Old keys are renamed
+        in-place inside `state_dict` before the parent class processes them.
+        """
+        # Legacy 3-stage U-Net stored encoders/decoders under hardcoded names:
+        #   enc_l0 → encoders.0,  enc_l1 → encoders.1
+        #   dec_l1 → decoders.0,  dec_l0 → decoders.1   (decoders list is deepest-first)
+        legacy_map = {
+            "enc_l0": "encoders.0",
+            "enc_l1": "encoders.1",
+            "dec_l1": "decoders.0",
+            "dec_l0": "decoders.1",
+        }
+        # Build a snapshot of keys to rename (mutating state_dict while iterating is bad).
+        renames = []
+        for k in state_dict:
+            if not k.startswith(prefix):
+                continue
+            tail = k[len(prefix):]
+            for old, new in legacy_map.items():
+                if tail.startswith(old + "."):
+                    renames.append((k, prefix + new + tail[len(old):]))
+                    break
+        for old_k, new_k in renames:
+            state_dict[new_k] = state_dict.pop(old_k)
+
+        return super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys,
+            unexpected_keys, error_msgs,
+        )
 
     def forward(
         self,
@@ -305,16 +353,18 @@ class LiDARUNet(nn.Module):
         # Stem.
         x = self.stem(z_noisy)
 
-        # Encoder, collecting skip features.
-        x, skip_0 = self.enc_l0(x, kv_context, t_emb=t_emb)
-        x, skip_1 = self.enc_l1(x, kv_context, t_emb=t_emb)
+        # Encoder, collecting skip features (shallow → deep).
+        skips: list[torch.Tensor] = []
+        for enc in self.encoders:
+            x, skip = enc(x, kv_context, t_emb=t_emb)
+            skips.append(skip)
 
         # Bottleneck.
         x = self.bottleneck(x, kv_context, t_emb=t_emb)
 
-        # Decoder with skip-concat.
-        x = self.dec_l1(x, skip_1, kv_context, t_emb=t_emb)
-        x = self.dec_l0(x, skip_0, kv_context, t_emb=t_emb)
+        # Decoder with skip-concat (deep → shallow; consume skips in reverse).
+        for dec, skip in zip(self.decoders, reversed(skips)):
+            x = dec(x, skip, kv_context, t_emb=t_emb)
 
         # Head.
         x = self.head_conv(F.silu(self.head_norm(x)))
