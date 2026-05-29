@@ -571,3 +571,118 @@ Based on the critique's estimate plus our existing M-1 building blocks:
 | **Total** | **6–8 hours** |
 
 This is the **largest single piece of M0**. The other M0 files (image_encoder.py, raymap.py, diffusion.py, smoke_test.py) together are another ~3–4 hours.
+
+---
+
+## 9. Inference — classifier-free guidance (empirical sweep)
+
+CFG is a pure inference-time trick: same trained U-Net, two predictions per
+DDIM step (one with `kv_context`, one with zeroed `kv_context`), mixed via:
+
+```
+pred = pred_uncond + w · (pred_cond - pred_uncond)
+```
+
+Implementation: [`models/diffusion.py:ddim_sample_cfg`](../models/diffusion.py)
+(LiDM batched pattern — single 2× forward per step, not two sequential).
+Full design + reference impls catalog in [`cfg_implementation_plan.md`](cfg_implementation_plan.md).
+
+**Training prerequisite**: the U-Net must have seen `kv_context = 0` for some
+fraction of training. Our M3 bs16 run used `--cond_dropout 0.2`, so the model
+learned both `p(z | image)` and `p(z)` modes simultaneously.
+
+### 9.1 Sweep results (M3 bs16 checkpoint, 16 held-out samples)
+
+Performed 2026-05-29 against
+[`out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/lidar_unet_best.pt`](../out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/lidar_unet_best.pt).
+
+| `w` | cos(z, μ) | CD-3D-oracle | CD-BEV-oracle | **CD-3D-raw** | Δ vs vanilla |
+|---|---|---|---|---|---|
+| 1.0 (vanilla) | +0.317 | 2.540 m | 1.582 m | **2.698 m** | baseline |
+| 1.5 | +0.312 | 2.496 m | 1.496 m | **2.677 m** | −0.8 % |
+| 2.0 | +0.302 | 2.409 m | — | **2.600 m** | −3.6 % |
+| **2.5** ★ | **+0.287** | **2.298 m** | — | **2.486 m** | **−7.9 %** |
+| 3.0 | +0.243 | 2.371 m | 1.204 m | **2.555 m** | −5.3 % |
+| 3.5 | +0.165 | 2.728 m | — | **2.870 m** | +6.4 % |
+| 4.0 | +0.100 | 2.984 m | — | **3.096 m** | +14.7 % |
+| 5.0 (broken) | +0.038 | 3.294 m | 1.445 m | **3.364 m** | +24.7 % |
+
+ASCII sketch of the U-curve:
+
+```
+CD-3D-raw (m)
+3.4 ┤                                                  ●   ← 5.0 (over-saturation)
+3.2 ┤
+3.0 ┤                                          ●           ← 4.0
+2.8 ┤                                  ●                   ← 3.5
+2.7 ┤●           ●                                         ← 1.0, 1.5
+2.6 ┤                   ●        ●                         ← 2.0, 3.0
+2.5 ┤                         ●                            ← 2.5 ★ optimum
+    └────────────────────────────────────────────────────
+     1.0  1.5  2.0  2.5  3.0  3.5  4.0       5.0    w
+```
+
+### 9.2 Observations
+
+1. **Optimal `w` is ~2.5 for this checkpoint** — well below the
+   Stable Diffusion default (7.5) and even below the LDM default (3.0).
+2. **Saturation onset is around w ≈ 3.0** — at w=3.5 we already see
+   `cos(z, μ)` collapsing from 0.287 → 0.165, meaning the predicted latent
+   starts diverging from the GT direction faster than CFG can compensate.
+3. **CD-BEV-oracle improves more than CD-3D-oracle** (1.582 → 1.204 m at w=3.0,
+   a −24 % drop, vs CD-3D-oracle's −6.6 %). CFG sharpens 2D structure first;
+   elevation/3D improvements are constrained by the LiDAR VAE's 8-channel
+   latent and the validity-thresholded discreteness at decode time.
+4. **8 % CD-3D-raw improvement is below the 10–30 % textbook range.**
+   Three plausible reasons:
+     - Base conditioning is weak — `cos(z, μ) = 0.317` at vanilla is low to
+       begin with. CFG amplifies; it doesn't conjure.
+     - `cond_dropout = 0.2` may be too high — typical recipes use 10–15 %.
+       Higher dropout = stronger unconditional mode = CFG pulls less hard.
+       Cannot be re-tuned without retraining.
+     - LiDAR VAE latent dim is 8 (paper uses 16) — CFG can sharpen the
+       predicted latent's *direction*, but the latent space's narrow
+       representational ceiling caps how much the resulting 3D point cloud
+       can improve.
+
+### 9.3 Recommendation
+
+- **Default `cfg_scale = 2.5`** for evaluation against this checkpoint.
+- **Skip CFG (`w = 1.0`) for training-time diagnostics** (DDIM sanity checks
+  inside M3, etc.) — adds 30 % compute for no signal there.
+- **Re-sweep `w` per checkpoint** — a larger / better-trained U-Net will
+  have a higher saturation threshold and a bigger CFG headroom.
+
+### 9.4 Artifacts in this folder layout
+
+Every sweep value gets its own timestamped folder via
+[`scripts/run_m4_demo.py --cfg_scale W`](../scripts/run_m4_demo.py):
+
+```
+<unet-train-folder>/m4_eval/
+├── 2026-05-29_112917__m4-demo/          ← w=1.0  (vanilla baseline)
+├── 2026-05-29_112939__m4-demo-cfg1.5/   ← w=1.5
+├── 2026-05-29_113008__m4-demo-cfg3/     ← w=3.0
+├── 2026-05-29_113037__m4-demo-cfg5/     ← w=5.0
+└── (fine sweep added 2.0, 2.5, 3.5, 4.0 in their own folders)
+```
+
+Each folder has `bev_grid.png`, `oblique_grid.png`, `stats.txt` — directly
+comparable across `w` values. The `s2s_min/out/m4_demo` symlink resolves to
+the *most recent* run, regardless of `w`.
+
+### 9.5 What this tells us about the next move
+
+The 8 % gain from CFG and the gentle saturation at w ≈ 3.0 jointly say the
+**capacity gap is the dominant remaining bottleneck**, not inference config.
+The next architecture-level investment is widening the U-Net:
+
+```
+current   level_channels = (96, 192, 384)    → 14.81 M params
+proposed  level_channels = (192, 384, 768)   → ~60 M params (~4×)
+```
+
+Tracked as a separate todo. CFG stays in the inference path either way —
+the optimal `w` for the bigger U-Net will likely shift upward (better-trained
+models can absorb more guidance before saturating).
+

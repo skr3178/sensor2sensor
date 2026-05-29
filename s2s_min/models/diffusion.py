@@ -103,3 +103,57 @@ class DiffusionWrapper:
             z = self.inference_scheduler.step(model_out, t, z).prev_sample
 
         return z
+
+    @torch.no_grad()
+    def ddim_sample_cfg(
+        self,
+        unet: nn.Module,
+        shape: tuple[int, ...],
+        kv_context: torch.Tensor,
+        device: torch.device,
+        cfg_scale: float = 3.0,
+        generator: torch.Generator | None = None,
+    ) -> torch.Tensor:
+        """DDIM sampling with classifier-free guidance.
+
+        Identical to `ddim_sample` when `cfg_scale == 1.0`. Above 1.0, runs the
+        U-Net on a 2× batch per step (concatenated unconditional + conditional)
+        and mixes the two predictions via:
+
+            pred = pred_uncond + cfg_scale * (pred_cond - pred_uncond)
+
+        The training prerequisite (the U-Net having seen `kv_context = 0` for
+        some fraction of training steps) is satisfied by our `--cond_dropout 0.2`
+        on the M3 bs16 run.
+
+        Pattern: LiDAR-Diffusion (Reference_code/LiDAR-Diffusion/lidm/models/diffusion/ddim.py:175-179).
+        Batched form is ~30 % faster than two sequential forward passes because
+        the U-Net's small batch is doubled into one larger kernel launch.
+
+        Args:
+            unet, shape, kv_context, device, generator: as in `ddim_sample`.
+            cfg_scale: guidance scale `w`. 1.0 = no guidance (= `ddim_sample`).
+                       Typical range: 1.5 (subtle) … 7.5 (heavy, may over-saturate).
+
+        Returns:
+            Sampled latent of shape `shape`.
+        """
+        if cfg_scale == 1.0:
+            return self.ddim_sample(unet, shape, kv_context, device, generator)
+
+        self.inference_scheduler.set_timesteps(self.inference_steps, device=device)
+        z = torch.randn(*shape, device=device, generator=generator)
+        kv_uncond = torch.zeros_like(kv_context)
+
+        for t in self.inference_scheduler.timesteps:
+            t_batch = t.expand(shape[0]).to(device)
+            # Batched CFG: [uncond half; cond half] concatenated on batch dim.
+            z_in  = torch.cat([z, z], dim=0)                    # [2B, ...]
+            t_in  = torch.cat([t_batch, t_batch], dim=0)
+            kv_in = torch.cat([kv_uncond, kv_context], dim=0)
+            pred_pair = unet(z_in, t_in, kv_in)
+            pred_uncond, pred_cond = pred_pair.chunk(2, dim=0)
+            pred = pred_uncond + cfg_scale * (pred_cond - pred_uncond)
+            z = self.inference_scheduler.step(pred, t, z).prev_sample
+
+        return z

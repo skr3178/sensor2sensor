@@ -68,8 +68,16 @@ def infer_one_sample(
     image_latent: torch.Tensor,         # [1, 4, 32, 56]
     raymap: torch.Tensor,                # [1, 6, 32, 56]
     seed: int | None = 42,
+    cfg_scale: float = 1.0,
 ) -> dict:
     """Run DDIM inference + VAE decode + unprojection on one sample.
+
+    Args:
+        cfg_scale: classifier-free guidance scale. 1.0 = no guidance (the original
+                   behavior — single conditional forward per DDIM step). Values
+                   > 1.0 run a batched 2x U-Net forward per step and mix
+                   unconditional + conditional predictions, sharpening the
+                   image-conditioned output (see `DiffusionWrapper.ddim_sample_cfg`).
 
     Returns a dict with:
         z_pred        : [1, 8, 8, 256] sampled latent
@@ -81,11 +89,12 @@ def infer_one_sample(
 
     if seed is not None:
         torch.manual_seed(seed)
-    z_pred = diffusion.ddim_sample(
+    z_pred = diffusion.ddim_sample_cfg(
         unet=unet,
         shape=(1, 8, 8, 256),
         kv_context=kv_context,
         device=torch.device(device),
+        cfg_scale=cfg_scale,
     )
 
     with torch.no_grad():
@@ -118,6 +127,10 @@ def main():
     p.add_argument("--idx",         type=int,  default=100,
                    help="cached-sample index to infer on (default 100 — held out from M3.1).")
     p.add_argument("--seed",        type=int,  default=42)
+    p.add_argument("--cfg_scale",   type=float, default=1.0,
+                   help="classifier-free guidance scale (1.0 = no guidance). "
+                        "Common values: 1.5, 3.0, 5.0. Requires the U-Net to have been "
+                        "trained with cond_dropout > 0 (M3 bs16 used 0.2).")
     p.add_argument("--device",      default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
 
@@ -145,7 +158,8 @@ def main():
     print(f"  raymap      : {tuple(raymap.shape)}")
     print(f"  mu (GT)     : {tuple(mu.shape)}")
 
-    pred = infer_one_sample(unet, vae, diffusion, image_latent, raymap, seed=args.seed)
+    pred = infer_one_sample(unet, vae, diffusion, image_latent, raymap,
+                            seed=args.seed, cfg_scale=args.cfg_scale)
     gt   = decode_ground_truth(vae, mu)
 
     print(f"\npredicted:")

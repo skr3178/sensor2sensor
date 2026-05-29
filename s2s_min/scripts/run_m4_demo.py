@@ -19,6 +19,7 @@ Output:
 """
 from __future__ import annotations
 
+import argparse
 import inspect
 import json
 import sys
@@ -98,13 +99,23 @@ def raw_lidar_for_sample(sample_token: str) -> np.ndarray:
 
 
 def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--cfg_scale", type=float, default=1.0,
+                   help="classifier-free guidance scale. 1.0 = vanilla (no guidance). "
+                        "Typical sweep: 1.0, 1.5, 3.0, 5.0. Requires U-Net trained with "
+                        "cond_dropout>0 (M3 bs16 was 0.2).")
+    args = p.parse_args()
+
     # Write eval outputs INSIDE the U-Net checkpoint's training folder so each
-    # checkpoint shows its own evals alongside it. Layout:
-    #   <unet-train-folder>/m4_eval/<timestamp>__m4-demo/{bev_grid.png, oblique_grid.png, stats.txt, summary.md}
-    OUT_DIR = new_run_folder("m4-demo", parent=UNET_CKPT.resolve().parent / "m4_eval")
+    # checkpoint shows its own evals alongside it. Run-folder name encodes cfg_scale
+    # so sweep runs each get distinct folders side-by-side:
+    #   <unet-train-folder>/m4_eval/<timestamp>__m4-demo-cfg<w>/{bev_grid.png, oblique_grid.png, stats.txt}
+    descriptor = "m4-demo" if args.cfg_scale == 1.0 else f"m4-demo-cfg{args.cfg_scale:g}"
+    OUT_DIR = new_run_folder(descriptor, parent=UNET_CKPT.resolve().parent / "m4_eval")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"output folder: {OUT_DIR}")
     print(f"device: {device}")
+    print(f"cfg_scale: {args.cfg_scale}")
 
     unet, unet_ckpt = load_unet(UNET_CKPT, device)
     vae = load_lidar_vae(LIDAR_VAE_CKPT, device)
@@ -121,6 +132,7 @@ def main():
     rows.append(f"  LiDAR VAE    : {LIDAR_VAE_CKPT}")
     rows.append(f"  DDIM steps   : {diffusion.inference_steps}")
     rows.append(f"  prediction   : {diffusion.prediction_type}")
+    rows.append(f"  cfg_scale    : {args.cfg_scale}{' (no guidance)' if args.cfg_scale == 1.0 else ' (classifier-free guidance ON)'}")
     rows.append(f"  range_m (BEV): {RANGE_M}")
     rows.append("")
     rows.append("Four Chamfer metrics (CD in meters; lower = better):")
@@ -156,7 +168,8 @@ def main():
         mu           = item["mu"].unsqueeze(0).to(device)
 
         t0 = time.time()
-        pred = infer_one_sample(unet, vae, diffusion, image_latent, raymap, seed=42)
+        pred = infer_one_sample(unet, vae, diffusion, image_latent, raymap,
+                                seed=42, cfg_scale=args.cfg_scale)
         oracle = decode_ground_truth(vae, mu)
         torch.cuda.synchronize() if device == "cuda" else None
         # Raw nuScenes LiDAR (in LiDAR sensor frame — same as range_image_to_point_cloud output).
