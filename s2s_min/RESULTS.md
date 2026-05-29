@@ -49,8 +49,8 @@ Combined with a re-trained LiDAR VAE (v5, 16 epochs on 100 scenes with LPIPS
 terms) and a fresh diffusion U-Net (50 epochs on the new cache, mse_ema 0.279
 vs old 0.553), the corrected end-to-end numbers are dramatically better.
 
-**Latest M4 run**: [`out/runs/2026-05-28_200902__m4-demo/`](out/runs/2026-05-28_200902__m4-demo/)
-([summary.md](out/runs/2026-05-28_200902__m4-demo/summary.md))
+**Latest M4 run**: [`out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/m4_eval/2026-05-28_200902__m4-demo/`](out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/m4_eval/2026-05-28_200902__m4-demo/)
+([summary.md](out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/m4_eval/2026-05-28_200902__m4-demo/summary.md))
 
 | Metric | Old M5 (bug-inflated) | **Latest M4 v2** | Δ |
 |---|---|---|---|
@@ -71,7 +71,7 @@ VAE's. With the bug fixed and the v5 VAE in place:
 | Diffusion share | **9 %** (0.55 / 6.13) | **74 %** (2.25 / 3.04) |
 | Dominant bottleneck | "Under-trained VAE" | **Under-trained diffusion U-Net** |
 
-Visually: in [oblique_grid.png](out/runs/2026-05-28_200902__m4-demo/oblique_grid.png),
+Visually: in [oblique_grid.png](out/runs/2026-05-28_161242__m3-unet-v5cache-50ep-bs16/m4_eval/2026-05-28_200902__m4-demo/oblique_grid.png),
 the VAE-oracle column is **visually indistinguishable from the raw nuScenes
 column** — the new VAE is paper-quality. The DDIM-predicted column shows
 recognizable scenes with per-scene differentiation (roughly "X-Drive" /
