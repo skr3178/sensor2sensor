@@ -43,6 +43,9 @@ s2s_min/out/m4_demo
 s2s_min/out/*.pid
 /todo
 
+# Multi-cam workspace (separate checkout, not tracked by main)
+/s2s_multicam
+
 # Claude Code local state
 /.claude/
 
