@@ -1,0 +1,18 @@
+Phase 0 — A-v2 inference sanity check
+======================================================================
+ckpt   : s2s_min/out/runs/2026-05-31_123510__phase0-Av2-overfit1-dinov3-3000steps-constLR/lidar_unet_best.pt
+token  : 000cf4dfaab54d21a7314036fde74966
+step   : 2582
+loss_ema (training) : 0.0365
+
+cos(z_pred, μ)        : +0.6925
+‖z_pred − μ‖² / n      : 0.4878
+
+CD-3D-oracle (m)      : 1.5090      (decode(z_pred) vs decode(μ))
+CD-BEV-oracle (m)     : 0.6918
+CD-3D-raw (m)         : 1.5966      (decode(z_pred) vs raw .pcd.bin)
+CD-BEV-raw (m)        : 0.8419
+CD-VAE-only (m)       : 0.8104      (decode(μ) vs raw — VAE floor)
+
+N_raw / N_oracle / N_pred : 34720 / 26685 / 25782
+DDIM-25 wall-clock (s) : 0.58

@@ -40,7 +40,15 @@ class DiffusionWrapper:
             prediction_type=prediction_type,
         )
         self.train_scheduler = DDPMScheduler(**common)
-        self.inference_scheduler = DDIMScheduler(**common)
+        # CRITICAL: clip_sample=False. The diffusers DDIMScheduler default clips
+        # pred_original_sample to [-1, +1] on every step (meant for image diffusion
+        # in pixel space). Our LiDAR latent has values up to ±5; the default clip
+        # caps z_pred std at ~0.6 × μ std and destroys reconstruction quality.
+        # Phase 0 root-cause analysis (s2s_min/docs/lidar-unet.md §11.9, 2026-05-31):
+        # disabling this clip moved DDIM-25 cos(z_pred, μ) from 0.74 → 0.9955 on a
+        # memorized sample. Training is unaffected (DDPMScheduler.add_noise() doesn't
+        # clip; only step() does, which is inference-only).
+        self.inference_scheduler = DDIMScheduler(**common, clip_sample=False)
         self.num_train_timesteps = num_train_timesteps
         self.inference_steps = inference_steps
         self.prediction_type = prediction_type

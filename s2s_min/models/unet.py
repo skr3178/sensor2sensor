@@ -278,13 +278,24 @@ class LiDARUNet(nn.Module):
             for i in range(n_levels - 1)
         ])
 
-        # Head: GN → SiLU → CircConv. Zero-init the final conv so the fresh
-        # U-Net predicts ε ≈ 0 on the first forward, giving a stable starting loss.
+        # Head: GN → SiLU → CircConv.
+        # Init choice is environment-controlled for the J1 ablation (see Unet_fix.md §J1):
+        #   S2S_HEAD_INIT=zero    (default) — both weight and bias zeroed (standard SD/ADM convention,
+        #                                     gives stable starting loss; Phase 0 §11.5 found this
+        #                                     suppresses z_pred std to ~0.63 × μ std).
+        #   S2S_HEAD_INIT=kaiming           — kaiming_normal_ on weight, zero on bias (J1 candidate fix).
+        # Cli-style override via env keeps the change a one-knob toggle for the retrain test.
         ch_finest = level_channels[0]
         self.head_norm = nn.GroupNorm(min(groupnorm_groups, ch_finest), ch_finest)
         self.head_conv = CircularConv2d(ch_finest, out_channels, kernel_size=3)
-        nn.init.zeros_(self.head_conv.conv.weight)
-        nn.init.zeros_(self.head_conv.conv.bias)
+        import os
+        head_init = os.environ.get("S2S_HEAD_INIT", "zero").lower()
+        if head_init == "kaiming":
+            nn.init.kaiming_normal_(self.head_conv.conv.weight, nonlinearity="linear")
+            nn.init.zeros_(self.head_conv.conv.bias)
+        else:
+            nn.init.zeros_(self.head_conv.conv.weight)
+            nn.init.zeros_(self.head_conv.conv.bias)
 
     # ---- back-compat: translate old 3-stage state_dict keys (enc_l0/enc_l1/dec_l0/dec_l1) ----
     def _load_from_state_dict(

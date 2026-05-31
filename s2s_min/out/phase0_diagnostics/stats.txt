@@ -1,0 +1,21 @@
+Phase 0 Diagnostics — A-v2 ckpt
+======================================================================
+ckpt   : s2s_min/out/runs/2026-05-31_123510__phase0-Av2-overfit1-dinov3-3000steps-constLR/lidar_unet_best.pt
+token  : 000cf4dfaab54d21a7314036fde74966
+step   : 2582
+loss_ema train : 0.0365
+
+--- Diagnostic 1: per-timestep one-step prediction ---
+    t      v_mse    cos(z0,μ)     rel_err
+    0     0.2311      +1.0000      0.0050
+   10     0.7041      +0.9995      0.0308
+   50     0.3178      +0.9984      0.0560
+  100     0.1825      +0.9972      0.0753
+  250     0.0776      +0.9925      0.1227
+  500     0.0311      +0.9911      0.1497
+  750     0.0220      +0.9924      0.1510
+  900     0.0316      +0.9865      0.1842
+  999     0.0406      +0.9808      0.2091
+
+--- Diagnostic 2: latent stats ratio ---
+z_pred.std / μ.std = 0.6314
