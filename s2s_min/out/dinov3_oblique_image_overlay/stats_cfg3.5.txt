@@ -1,0 +1,16 @@
+DINOv3 ckpt: s2s_min/out/runs/2026-05-29_204102__m3-unet-15M-dinov3-fromscratch/lidar_unet_best.pt
+step / loss_ema: 7135 / 0.2665
+cfg_scale: 3.5
+K1 clip_sample: False
+
+Per-sample:
+  000cf4df…  CD-3D-raw=1.5701  CD-3D-oracle=1.4206  CD-VAE-only=0.8104
+  4007e9dc…  CD-3D-raw=1.6411  CD-3D-oracle=1.5607  CD-VAE-only=0.6979
+  7fa07947…  CD-3D-raw=1.6734  CD-3D-oracle=1.5166  CD-VAE-only=0.7779
+  bbc4b411…  CD-3D-raw=1.8141  CD-3D-oracle=1.6540  CD-VAE-only=0.8360
+
+Means:
+  CD-3D-raw     : 1.6747 m
+  CD-3D-oracle  : 1.5380 m
+  CD-VAE-only   : 0.7806 m
+  Diffusion gap : +0.8941 m

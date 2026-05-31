@@ -1364,3 +1364,314 @@ These are all inference-time fixes against existing checkpoints — zero retrain
 | [`out/dinov3_vs_raw_gt/bev_grid_cfg3.png`](../out/dinov3_vs_raw_gt/bev_grid_cfg3.png) | BEV grid at cfg=3.0 |
 | [`out/dinov3_azimuth_heatmap_postK1/heatmap.png`](../out/dinov3_azimuth_heatmap_postK1/heatmap.png) | Per-elevation × per-azimuth heatmap |
 
+
+## 13. C5 viability probe — DA-v2 depth vs LiDAR range (2026-05-31)
+
+Before committing to the 4-hour C5 retrain (SD-VAE + Depth-Anything-v2
+depth-channel concat), the probe falsifies the hypothesis that **adding a
+monocular metric-depth channel can close the remaining 1.02 m diffusion gap
+identified in §12.3**.
+
+Script: [`scripts/depth_correlation_probe.py`](../scripts/depth_correlation_probe.py).
+Artifacts: [`out/c5_depth_probe/`](../out/c5_depth_probe/).
+Model checkpoint downloaded to
+[`checkpoints/depth_anything_v2_metric_outdoor_small/`](../checkpoints/depth_anything_v2_metric_outdoor_small/)
+(95 MB, 24.8 M params, standard HF transformers `AutoModelForDepthEstimation`).
+
+### 13.0 What the probe measures
+
+For each of 100 random samples from the training cache:
+
+1. Run DA-v2 Metric Outdoor Small on the CAM_FRONT image → depth map at 518×924
+2. Load raw LIDAR_TOP `.pcd.bin` with per-point HDL-32E ring index
+3. Project LiDAR points (sensor frame → ego → camera frame → image plane)
+   using nuScenes calibration
+4. For each projected point: pair `(DA-v2 depth at pixel, LiDAR range)`
+5. Bin into `(latent_elevation_row, azimuth_band)` cells
+6. Compute Spearman correlation per cell + per row + as headline
+
+Also computed as **baselines / controls**:
+- **v-baseline**: image-row position alone (perspective geometry — what you
+  get for free)
+- **Random shuffle null**: shuffled DA-v2 depths vs LiDAR — should be ≈ 0
+- **Outside-FoV count**: LiDAR points with no camera coverage (C5 cannot help these)
+
+DA-v2 output convention: inverse depth scaled by `max_depth` (= 80 m).
+We use Spearman (rank-based) so the negative correlation just reads as |r|.
+
+### 13.1 Headline numbers (top-beam mean, rows 5-7)
+
+| Predictor | mean |Spearman r| | Notes |
+|---|---|---|
+| **DA-v2 depth** | **0.4706** | The test signal |
+| **v-baseline (image-row position)** | **0.3055** | Perspective alone — free |
+| **Random shuffle null** | **0.0007** | ≈ 0 ✓ test is calibrated |
+| **DA-v2 LIFT over v-baseline** | **+0.165** | What C5 adds beyond perspective |
+
+The **lift number is the meaningful one** — it's what DA-v2 contributes
+beyond what cross-attention can already extract from raymap + image position.
+
+### 13.2 Per-row breakdown
+
+| row | n_pairs | med_range | DA-v2 | v-baseline | random | LIFT | verdict |
+|---|---|---|---|---|---|---|---|
+| 0 | 0 | — | — | — | — | — | below FoV |
+| 1 | 0 | — | — | — | — | — | below FoV |
+| 2 | 8,248 | 5.9 m | sat | 0.440 | — | — | DA-v2 saturated |
+| 3 | 64,707 | 7.1 m | sat | **0.854** | — | — | v-baseline near-perfect |
+| 4 | 65,161 | 11.0 m | sat | **0.756** | — | — | v-baseline near-perfect |
+| **5** | 54,447 | 20.7 m | 0.370 | 0.297 | 0.001 | **+0.073** | tiny |
+| **6** | 39,946 | 33.5 m | **0.567** | 0.257 | 0.001 | **+0.310** ⭐ | meaningful |
+| **7** | 34,283 | 32.1 m | 0.475 | 0.362 | 0.001 | **+0.113** | small |
+
+**Key observation**: For rows 3-4 (mid-range road), v-baseline alone hits
+|r| = 0.75-0.85 — image-row position is a near-perfect depth predictor.
+That's why those rows don't need DA-v2 help (and incidentally why DINOv3
+already predicts them well in §12.2).
+
+**Only row 6 shows a substantial DA-v2 lift (+0.31).** Rows 5 and 7 see
+only marginal value (+0.07, +0.11) above what perspective alone provides.
+
+### 13.3 Per-cell heatmap (row × azimuth band)
+
+|   | L2 (−35°..−17°) | L1 (−17°..0°) | R1 (0°..+17°) | R2 (+17°..+35°) | row total |
+|---|---|---|---|---|---|
+| row 0-1 | — | — | — | — | (below FoV) |
+| row 2 | sat | sat | sat | sat | N/A |
+| row 3 | sat | sat | sat | sat | N/A |
+| row 4 | sat | sat | sat | sat | N/A |
+| **row 5** | 0.291 | 0.456 | 0.402 | 0.280 | **0.370** |
+| **row 6** | 0.477 | **0.639** ⭐ | **0.606** ⭐ | 0.472 | **0.567** |
+| **row 7** | 0.417 | 0.475 | 0.546 | 0.319 | **0.475** |
+
+Two spatial gradients in the |r| signal:
+- **Center > Edges (azimuth)**: For every good row, inner ±17° bands beat
+  outer bands by ~0.15 |r|. Camera distortion + DA-v2 working best near
+  the principal axis.
+- **Row 6 is the sweet spot (elevation)**: Higher than row 5 (closer/saturating)
+  and row 7 (top/saturating). Maps to rings 24-27 hitting things at
+  ~35 m — DA-v2's best resolution range.
+
+### 13.4 Outside-FoV control — the dominant caveat
+
+**92.3 % of all LiDAR points are outside CAM_FRONT FoV** and receive ZERO
+DA-v2 signal:
+
+| Latent row | Inside FoV | Outside FoV | % outside |
+|---|---|---|---|
+| 0 (rings 0-3) | 0 | 434,007 | **100 %** |
+| 1 (rings 4-7) | 0 | 434,008 | **100 %** |
+| 2 | 8,248 | 425,760 | 98 % |
+| 3 | 64,707 | 369,301 | 85 % |
+| 4 | 65,161 | 368,824 | 85 % |
+| **5** | 54,447 | 377,532 | **87 %** |
+| **6** | 39,946 | 389,964 | **91 %** |
+| **7** | 34,283 | 396,672 | **92 %** |
+
+The top beams (5-7) where DA-v2 has measurable lift are also where
+**~90 % of LiDAR returns fall outside the camera's view**. C5 with a single
+CAM_FRONT cannot help those points at all — they continue to be predicted
+from raymap + DINOv3 alone.
+
+### 13.5 Calibrated C5 impact estimate
+
+Multiplying the lift through the coverage:
+
+| Factor | Value |
+|---|---|
+| Mean DA-v2 lift over baseline (top beams) | +0.165 |λr| |
+| Fraction of LiDAR points within CAM_FRONT FoV | ~ 8-15 % per row |
+| Fraction outside FoV (no benefit) | ~ 85-100 % per row |
+| **Expected impact on overall CD-3D-raw** | **3-8 % reduction** |
+
+From current 1.730 m → target ≈ **1.59-1.68 m** with C5 (DA-v2 Small).
+
+This is **smaller than the earlier "10-20 %" estimate** because of the
+outside-FoV control: the previous estimate didn't account for the fact that
+DA-v2 contributes nothing to ~90 % of LiDAR returns.
+
+### 13.6 Updated next-move recommendation
+
+| Option | Expected CD-3D-raw | Cost | Verdict |
+|---|---|---|---|
+| **C5 with DA-v2 Small only** | 1.65 m (~5 % gain) | 4 hr retrain | Modest gain; worth doing if cheap is preferred |
+| **Multicam scope-B + C5 per camera** | TBD (likely larger gain) | 2-3 days | **The lever the probe points to** — addresses 90 % of LiDAR points currently un-conditioned |
+| **DA-v2 Base/Large + probe re-run** | Unknown until measured | 30 min eval, then 4 hr retrain | Try if want bigger C5 gain before committing |
+
+The probe's most important finding: **the dominant unfixed cause of the
+1 m diffusion gap is azimuth coverage, not depth-encoding quality.** Even
+if DA-v2 worked perfectly within the front FoV, 90 % of LiDAR points would
+still have zero camera-derived conditioning. **Multicam (scope-B) is the
+real lever.**
+
+### 13.7 Why DA-v2 doesn't dominate v-baseline more
+
+Several factors limit the DA-v2 lift over the perspective baseline:
+
+1. **Distribution shift** — DA-v2 trained on Virtual KITTI 2 (synthetic
+   driving); nuScenes Boston / Singapore has different cameras, lighting,
+   building geometry
+2. **Saturation at long range** — DA-v2 max_depth = 80 m; many top-beam
+   LiDAR returns are 50-80 m at the saturation tail
+3. **Camera-LiDAR calibration noise** — sub-pixel offsets in projection
+   degrade per-pixel pairings
+4. **Pixel multi-occupancy** — multiple LiDAR points project to the same
+   image pixel; only the closest survives at that pixel
+
+These are intrinsic to monocular depth + projection mechanics; not fixed by
+using a bigger DA-v2.
+
+### 13.8 Artifacts
+
+| Path | What |
+|---|---|
+| [`scripts/depth_correlation_probe.py`](../scripts/depth_correlation_probe.py) | Probe script with all baselines + outside-FoV control, `--da_ckpt` arg |
+| [`out/c5_depth_probe/`](../out/c5_depth_probe/) | DA-v2 **Small** results (heatmap, scatter, stats) |
+| [`out/c5_depth_probe_base/`](../out/c5_depth_probe_base/) | DA-v2 **Base** results (same format) |
+| [`checkpoints/depth_anything_v2_metric_outdoor_small/`](../checkpoints/depth_anything_v2_metric_outdoor_small/) | 95 MB DA-v2 Metric Outdoor Small |
+| [`checkpoints/depth_anything_v2_metric_outdoor_base/`](../checkpoints/depth_anything_v2_metric_outdoor_base/) | 372 MB DA-v2 Metric Outdoor Base |
+
+### 13.9 Encoder-scale ablation — DA-v2 Small vs Base (2026-05-31)
+
+Same probe re-run on `Depth-Anything-V2-Metric-Outdoor-Base-hf` (97.5 M params,
+372 MB; 4× the params of Small) to test if encoder capacity is the bottleneck.
+
+**Top-band Spearman comparison (rows 5-7 mean):**
+
+| Quantity | Small (24.8 M) | **Base (97.5 M)** | Δ |
+|---|---|---|---|
+| DA-v2 |r| | 0.471 | **0.494** | +0.023 |
+| v-baseline |r| | 0.306 | 0.306 | (unchanged) |
+| **LIFT over baseline** | **+0.165** | **+0.189** | +0.024 (+15 % relative) |
+| Best single cell | 0.639 (row 6, L1) | **0.679** (row 6, R1) | +0.040 |
+| Outside-FoV coverage | 92.3 % | 92.3 % | (unchanged — geometry constraint) |
+
+Per-row breakdown:
+
+| row | Small lift | Base lift | Δ |
+|---|---|---|---|
+| 5 | +0.073 | +0.089 | +0.016 |
+| 6 | +0.310 | +0.338 | +0.028 |
+| 7 | +0.113 | +0.138 | +0.025 |
+
+**Verdict — encoder scaling is sublinear:**
+
+- **4× more parameters → only +0.023 |Spearman| improvement** (~15 % relative, ~5 % absolute).
+- Coverage is unchanged (Base can't see what Small can't see — it's a geometric constraint, not an encoder one).
+- The bottleneck is **intrinsic to monocular depth on this data**:
+  - Distribution shift (VKITTI synthetic → nuScenes Boston/Singapore real)
+  - Camera-LiDAR calibration noise (sub-pixel offsets)
+  - DA-v2 saturation at 80 m max depth
+  - Pixel multi-occupancy
+
+**Refined C5 impact estimate using Base:** 4-10 % CD-3D-raw reduction
+(1.730 m → ~1.55-1.66 m). Marginal improvement over Small (1.59-1.68 m).
+
+**The conclusion from §13.6 is reinforced**: multicam scope-B is the right
+next lever, not bigger DA-v2. The probe ran twice with different model
+sizes; both told us the same thing — coverage is the binding constraint,
+not encoder quality.
+
+### 13.10 What about DA-v2 Large or DA3-SMALL?
+
+| Candidate | Status | Why not (yet) |
+|---|---|---|
+| DA-v2-Metric-Outdoor-Large-hf (335 M, 1.4 GB) | not tested | Given Small → Base only added +0.023, Large would likely add another +0.02-0.04. Still leaves the outside-FoV problem unfixed. |
+| DA3-SMALL (34 M, 131 MB) | downloaded but BLOCKED | Requires Python ≥3.9 + custom API (`depth_anything_3.api`); our env is 3.8.16. Weights at `s2s_min/checkpoints/da3_small/`. |
+| DA3METRIC-LARGE (V3) | not downloaded | Same Python issue as DA3-SMALL. |
+| DPT, CroCo, DUSt3R | not investigated | Different families; not on the table given encoder-scale ablation shows diminishing returns. |
+
+
+## 14. Held-out generalization gap (2026-05-31)
+
+The headline 1.730 m CD-3D-raw in §12.3 was on **training-set tokens** (sampled
+from the same 4,023-sample v5_100scenes cache the DINOv3 model was trained on).
+This section measures performance on truly held-out tokens — samples NOT in the
+training cache — using the same K1 + CFG=3.5 inference path.
+
+Script: [`scripts/dinov3_heldout_demo.py`](../scripts/dinov3_heldout_demo.py).
+Artifacts: [`out/dinov3_heldout_demo/`](../out/dinov3_heldout_demo/).
+
+Reuses canonical helpers (no duplicated logic):
+- DINOv3 timm encoder (`vit_small_patch16_dinov3.lvd1689m`) from
+  [`train/cache_dinov3.py`](../train/cache_dinov3.py)
+- Raymap from `scale_intrinsics`, `make_T`, `build_raymap` in
+  [`train/cache_latents.py`](../train/cache_latents.py)
+- Loaders + projection helpers from existing eval scripts
+
+### 14.1 Setup
+
+| | |
+|---|---|
+| Held-out pool | 30,126 tokens with both LIDAR_TOP and CAM_FRONT keyframes, NOT in the 4,023-sample training cache |
+| Picked | 4 tokens, seed 123 |
+| Pipeline | Live DINOv3 encode → raymap → KV → DDIM-25 (K1 on, cfg=3.5) → VAE decode → Chamfer vs raw .pcd |
+
+### 14.2 Results
+
+| Eval | Tokens | Mean CD-3D-raw | Mean CD-BEV |
+|---|---|---|---|
+| **Training-set ref** (§12.3) | 16 | **1.730 m** | 1.078 m |
+| **HELD-OUT** | 4 | **2.420 m** | 1.694 m |
+| **Δ (held-out − train)** | | **+0.690 m (+40 %)** | +0.616 m (+57 %) |
+
+Per-sample held-out CDs: 2.50, 3.04, 1.93, 2.20 m (variance high — only 4 samples).
+
+### 14.3 Visual interpretation
+
+[`out/dinov3_heldout_demo/bev_heldout_cfg3.5.png`](../out/dinov3_heldout_demo/bev_heldout_cfg3.5.png):
+- All 4 GT scenes are visually distinct (urban canyons, tree-lined roads)
+- All 4 PRED scenes look **notably similar** to each other — the mode-collapse /
+  "averaged BEV" pattern from before K1 partially re-emerges
+- K1's per-scene differentiation that worked on training samples does NOT
+  transfer to OOD samples
+
+[`out/dinov3_heldout_demo/image_heldout_cfg3.5.png`](../out/dinov3_heldout_demo/image_heldout_cfg3.5.png):
+- GT projections trace road + vehicle geometry cleanly
+- Pred projections are sparser and less scene-specific in OOD scenes
+
+### 14.4 What this changes
+
+**The K1 + CFG wins were partly in-distribution overfitting.** Specifically:
+- K1 fixed an inference-time clip that was *destroying signal the model had
+  learned*. The signal it learned on the 4k training set was strong.
+- On held-out data, the model never learned the necessary scene priors in the
+  first place — K1 can't recover what's not there.
+- CFG amplifies the conditional signal; if that signal is weak (OOD), CFG
+  amplifies noise.
+
+### 14.5 Implication for Phase 2 priorities
+
+The +0.69 m generalization gap (+40 %) is **larger than the entire remaining
+in-distribution diffusion gap (1.00 m in §12.3)**. This re-orders Phase 2
+candidates:
+
+| Lever | In-dist gain | Held-out gain | New rank |
+|---|---|---|---|
+| **Data scale-up** (retrain on existing 34k v5_850scenes cache) | ~5-10 % | likely **20-40 %** | **NEW #1** |
+| Multicam scope-B | unknown | likely large, esp. for back beams | #2 |
+| C5 (DA-v2 depth concat) | 4-10 % | likely 0-3 % (won't fix generalization) | demoted |
+| K2 (β values, retrain) | small | small | unchanged |
+
+The 34k cache was built and audited in earlier work (H1, ruled out as a fix
+for the *plateau* — but never tried as a Phase-1 generalization fix). With K1
++ CFG=3.5 + 8.5× more training data, expected held-out CD-3D-raw is much
+closer to the in-distribution number.
+
+### 14.6 Caveats on this measurement
+
+- **N=4 only** — high per-sample variance (2.50, 3.04, 1.93, 2.20 m). Should
+  re-run with N=16-32 for a tight number.
+- **Same calibration model used at train and eval** — generalization here is
+  to NEW SCENES, not to new cameras / new sensor configurations.
+- **Same nuScenes city distribution** — all samples are still Boston / Singapore.
+
+### 14.7 Artifacts
+
+| Path | What |
+|---|---|
+| [`scripts/dinov3_heldout_demo.py`](../scripts/dinov3_heldout_demo.py) | End-to-end held-out inference script (live DINOv3 + live raymap) |
+| [`out/dinov3_heldout_demo/bev_heldout_cfg3.5.png`](../out/dinov3_heldout_demo/bev_heldout_cfg3.5.png) | BEV grid for held-out samples |
+| [`out/dinov3_heldout_demo/image_heldout_cfg3.5.png`](../out/dinov3_heldout_demo/image_heldout_cfg3.5.png) | CAM_FRONT + projected LiDAR overlay |
+| [`out/dinov3_heldout_demo/stats_cfg3.5.txt`](../out/dinov3_heldout_demo/stats_cfg3.5.txt) | Per-sample + mean Chamfer numbers |
+
