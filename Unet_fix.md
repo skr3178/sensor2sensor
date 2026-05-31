@@ -181,32 +181,61 @@ Test-cheap, fix-bug-or-confirm-bug-isn't-it.
 - **F2. Curriculum on noise schedule** — start with low t (easy denoising), gradually expose high t. Helps convergence on hard problems.
 - **F3. Loss reweighting at high t** — weight v-loss by `min(SNR, γ)` (Salimans 2022). Easy gradient improvement at high noise.
 - **F4. Lower LR + longer warmup** — currently 2e-4 / 500. Going to 1e-4 / 2000 may extract more from the conditioning.
+- **F5. Constant LR for overfit / short runs** — Phase 0 (2026-05-31) showed cosine LR decays to 1e-6 before convergence on small subsets, producing false-negative results. Use `--lr_schedule constant` for any overfit-N validation.
 
 ### G. Inference-time fixes (no retraining)
-- **G1. More DDIM steps (25 → 50 or 100)** — costs 2-4× wall-clock but may surface model quality that 25 steps misses.
+- **G1. More DDIM steps (25 → 50 or 100)** — DEPRECATED. Phase 0 ablation (§11.4) showed more deterministic DDIM steps make outputs WORSE on overfit-trained models (cos sim crashes 0.69 → −0.02 from 25 → 999 steps) due to off-trajectory drift. May still help once the model is well-generalized, but is not the cheap inference win it appeared to be.
 - **G2. DPM-Solver++ or UniPC sampler** — better than DDIM at 10-25 steps. ~50 LOC port from diffusers.
 - **G3. Higher CFG scale + temperature scheduling** — already swept; revisit once H5/H2 fix lands.
+- **G4. Stochastic DDIM (η > 0)** — NEW (2026-05-31). Phase 0 §11.4: at η=1.0 (full DDPM-like noise re-injection), cos(z_pred, μ) on memorized sample jumps **0.69 → 0.86**. Re-injects noise per step to keep trajectory on the data manifold; counteracts the deterministic-DDIM drift problem. ~5 LOC: pass `eta=η` through `inference_scheduler.step(...)` in [`models/diffusion.py`](s2s_min/models/diffusion.py). **Should be the new default sampler.**
 
 ### H. Bottleneck candidates we've ruled out (cross-off list)
 - ❌ Dataset size (H1 ruled out: 4k cache vs 34k cache gave identical loss curves within ±1%)
-- ❌ Noise schedule (audit clean)
+- ❌ Noise schedule (audit clean; β_end already at 0.012 via `scaled_linear`)
 - ❌ Raymap math (audit clean)
 - ❌ Naked model-capacity (60M vs 15M plateaued at same loss)
+- ❌ "Vanishing conditioner" at training time (Phase 0 §11.3 — single-cam one-step recovery cos > 0.98 at every t)
+- ❌ DDIM step compounding (Phase 0 §11.4 — more deterministic steps makes it WORSE)
+- ❌ Architectural identity bug (Phase 0 §11.3 — t=0 identity is exact, cos = 1.0000)
 
-### I. Recommended attack order (REVISED after A1 result, 2026-05-29)
-A1 changed the picture: the SD VAE latent carries no local depth signal, so the lead fix is
-now the **encoder**, not pos-enc. Pos-enc (B1) is still worth doing but cannot be the whole
-story.
-1. ✅ **A1** (depth probe) — DONE. Verdict: encoder is depth-impoverished (H2/H3).
-2. **C5** (SD VAE + Depth-Anything depth-channel concat) — cheapest way to inject the missing
-   depth signal; keeps the appearance pathway. Rebuild a small cache, then re-run A1 on the new
-   features to confirm `img` clears the raymap baseline. **← lead fix now.**
-3. **B1** (sinusoidal pos-enc) — still a real bug, ~30 LOC; do alongside C5 so cross-attn can
-   actually localize the now-richer features. (A standalone B1 run is in progress for the record.)
-4. If C5 underwhelms: full encoder swap **C1 / C2 / C3** (Depth-Anything / DINOv2 / DPT).
-5. **A4** (attention attribution) + **D1** (FiLM) — secondary, once the conditioning carries depth.
-6. Only after the above plateau: **E1 / E2** (bigger U-Net or richer VAE latent), or
+### I. Recommended attack order (REVISED after ROOT CAUSE FIX, 2026-05-31)
+
+🎯 **ROOT CAUSE FOUND AND FIXED**: `DDIMScheduler clip_sample=True` was clipping
+predicted latents to [−1, +1] on every step. LiDAR latent μ has values up to ±5.
+**Full diagnosis: `s2s_min/docs/lidar-unet.md §11.9`.** Fix is one line in
+[`models/diffusion.py:43`](s2s_min/models/diffusion.py).
+
+Results on the same checkpoints:
+- A-v3 overfit (memorized sample): DDIM-25 cos 0.74 → **0.9955**, std ratio 0.59 → **0.955**
+- Full-train DINOv3 (4 production samples): CD-3D-raw 2.00 m → **1.78 m** (−11%); diffusion gap 1.22 m → **1.00 m** (−18%)
+
+This invalidates much of the prior fix taxonomy:
+- G4 (stochastic DDIM η=1.0): NO LONGER NEEDED — was a partial mitigation of the clip bug
+- J1 (kaiming head_conv init): NO LONGER NEEDED — clip was the real cause, not init
+- "More DDIM steps = worse" pattern: GONE — now DDIM-100 cos = 0.995 too
+
+1. ✅ **K1** (clip_sample=False) — DONE, no retrain. **THE ROOT CAUSE FIX.** Already applied.
+2. ✅ **A1** (depth probe) — DONE. Encoder is depth-impoverished (H2/H3).
+3. ✅ **Phase 0 diagnostics** — DONE. Architecture sound; the bug was in `diffusers.DDIMScheduler` config, not our code.
+4. **K2** (fix β values to SD's 0.00085/0.012, requires retrain) — secondary. Defer to next full retrain.
+5. **C5** (SD VAE + Depth-Anything depth-channel concat) — still relevant for generalization gap. Now that K1 is fixed, can finally see what conditioning quality actually buys.
+6. **Re-investigate multicam failure with K1 applied** — multicam was almost certainly partly explained by the clip bug; needs retest before any architectural changes.
+7. If C5 underwhelms: full encoder swap **C1 / C2 / C3** (Depth-Anything / DINOv2 / DPT).
+8. **A4** (attention attribution) + **D1** (FiLM) — secondary, once the conditioning carries depth.
+9. Only after the above plateau: **E1 / E2** (bigger U-Net or richer VAE latent), or
    paper-fidelity multi-camera (#6 in original list).
+
+### J. Architectural fixes surfaced by Phase 0 (2026-05-31) — MOSTLY OBSOLETED BY K1
+
+- **J1. Remove zero-init on `head_conv`** — **OBSOLETED.** Tested in A-v3 (kaiming init); did not move the std ratio. The squashing was actually K1 (DDIM clip), not zero-init. Keep code under `S2S_HEAD_INIT=kaiming` env toggle for future ablations, but no need to deploy.
+- **J2. Verify head_conv init across runs** — moot after K1.
+- **J3. AdaLN-Zero alternative** — defer; not needed given K1 fixed the symptom J1 was targeting.
+
+### K. NEW — Scheduler / diffusion-config fixes (2026-05-31)
+
+- **K1. `DDIMScheduler(clip_sample=False)`** ✅ APPLIED — one line in [`models/diffusion.py:43`](s2s_min/models/diffusion.py). Diffusers' default clips predicted x_0 to [−1, +1] every step (pixel-space assumption); our LiDAR latent extends to ±5. Symptom was the std-ratio squashing stuck at 0.63 across every other knob. Validated: cos 0.74 → 0.9955 on memorized sample, CD-3D-raw 2.00 → 1.78 m on production. **NO RETRAIN NEEDED.**
+- **K2. β_start/β_end to SD values (0.00085 / 0.012)** — secondary, would require retrain. Our current 0.0001 / 0.02 are diffusers DDPM defaults paired with SD's `scaled_linear` formula → too-aggressive noise at high t. Defer to next planned full retrain.
+- **K3. Verify other scheduler defaults** — for future: check `set_alpha_to_one`, `steps_offset`, `thresholding`, `dynamic_thresholding_ratio` against latent-diffusion best practice. None currently flagged.
 
 
 (Fast, 30 min) Apply Fix #1 (sinusoidal pos encoding from diffusers' utility). Test by warm-starting from the killed H1 checkpoint. If cos sim breaks through 0.32 → bug confirmed, this was probably the whole story.
