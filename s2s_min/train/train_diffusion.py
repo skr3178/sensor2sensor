@@ -165,6 +165,19 @@ def main():
                    default=S2S_DIR / "out" / "lidar_unet.pt")
     p.add_argument("--no_amp", action="store_true",
                    help="disable mixed precision (default: fp16 on CUDA).")
+    # ── Inline eval (replaces MSE as stopping criterion; see lidar-unet.md §15.x) ──
+    p.add_argument("--inline_eval", action="store_true",
+                   help="Enable in-loop held-out CD eval + cos-sim diagnostic + best_cd ckpt.")
+    p.add_argument("--cos_eval_every", type=int, default=250,
+                   help="Cos-sim recovery diagnostic cadence in optimizer steps. ~5 sec each.")
+    p.add_argument("--cd_eval_every", type=int, default=500,
+                   help="Held-out CD-3D-raw eval cadence in optimizer steps. ~30 sec each (N=16).")
+    p.add_argument("--n_heldout_eval", type=int, default=16,
+                   help="Number of held-out samples for inline CD eval.")
+    p.add_argument("--eval_cfg_scale", type=float, default=3.5,
+                   help="CFG scale for inline held-out eval (Phase 1 optimum, §12.3).")
+    p.add_argument("--eval_seed", type=int, default=0,
+                   help="Fixed seed for held-out token selection (reproducible eval set).")
     # U-Net architecture knobs (forwarded to LiDARUNet). Defaults reproduce the
     # legacy 3-stage (96, 192, 384) ~14.81 M config bitwise (back-compat verified
     # via tests/test_unet_nstage_regression.py).
@@ -308,14 +321,40 @@ def main():
     # values produce distinct EMA/best files (e.g. --checkpoint lidar_unet_m32.pt →
     # lidar_unet_m32_ema.pt / lidar_unet_m32_best.pt). Avoids cross-run overwrites.
     stem = args.checkpoint.stem
-    ckpt_ema_path  = args.checkpoint.with_name(f"{stem}_ema.pt")
-    ckpt_best_path = args.checkpoint.with_name(f"{stem}_best.pt")
+    ckpt_ema_path     = args.checkpoint.with_name(f"{stem}_ema.pt")
+    ckpt_best_path    = args.checkpoint.with_name(f"{stem}_best.pt")
+    ckpt_best_cd_path = args.checkpoint.with_name(f"{stem}_best_cd.pt")  # NEW
 
     loss_ema: float | None = None
     best_loss_ema: float = float("inf")
+    best_cd_held: float = float("inf")   # NEW
     step = 0
     epoch = 0
     t_start = time.perf_counter()
+
+    # ── Inline eval setup (per CLI; per lidar-unet.md §15.x stopping-criterion fix) ──
+    eval_set = None
+    vae = None
+    if args.inline_eval:
+        if args.encoder != "dinov3":
+            print(f"  ⚠ --inline_eval currently only supports --encoder dinov3; skipping.")
+            args.inline_eval = False
+        else:
+            from train.inline_eval import build_heldout_eval_set
+            from eval.decode_to_pointcloud import load_lidar_vae
+            print(f"  building inline-eval set: {args.n_heldout_eval} held-out samples "
+                  f"(seed={args.eval_seed}, cfg={args.eval_cfg_scale})...")
+            t_eval = time.perf_counter()
+            vae = load_lidar_vae(S2S_DIR / "out" / "lidar_vae_best.pt", device)
+            eval_set = build_heldout_eval_set(
+                n_samples=args.n_heldout_eval, seed=args.eval_seed,
+                training_cache_dir=args.dinov3_cache_dir,
+                device=device, sdvae_cache_for_mu=args.cache_dir, proj=proj, vae=vae,
+            )
+            print(f"  loaded {len(eval_set)} eval samples + LiDAR VAE in {time.perf_counter()-t_eval:.1f}s")
+            print(f"  cos-sim cadence : every {args.cos_eval_every} steps  (~5 sec)")
+            print(f"  held-out CD cad.: every {args.cd_eval_every} steps  (~30 sec for N={len(eval_set)})")
+            print(f"  best_cd ckpt    : {ckpt_best_cd_path}  (saved when CD-3D-raw mean improves)")
 
     def _train_one_batch(batch: dict) -> dict:
         """One forward+backward; accumulates into the current optimizer step.
@@ -411,6 +450,23 @@ def main():
             **_common_meta(),
         }, ckpt_best_path)
 
+    def _save_best_cd():
+        """Save best-by-held-out-CD checkpoint (the truly aligned metric per §15.x)."""
+        torch.save({
+            "state_dict": ema.state_dict(),
+            "loss_ema": loss_ema,
+            "best_cd_held": best_cd_held,
+            **_common_meta(),
+        }, ckpt_best_cd_path)
+
+    # Inline-eval state. Lists track (step, value) so plot_live_loss can read from a JSONL.
+    eval_log_path = args.checkpoint.with_name(f"{stem}_eval.jsonl")
+    import json as _json
+
+    def _append_eval_log(record: dict):
+        with eval_log_path.open("a") as f:
+            f.write(_json.dumps(record) + "\n")
+
     optim.zero_grad(set_to_none=True)
     micro = 0
     last_losses: dict = {}
@@ -425,6 +481,47 @@ def main():
         if step >= WARMUP_STEPS_FOR_BEST and loss_ema < best_loss_ema:
             best_loss_ema = loss_ema
             _save_best()
+
+    def _maybe_run_inline_eval() -> None:
+        """Called after each optimizer step. Runs cos-sim diag + held-out CD on cadence.
+
+        See lidar-unet.md §15.x for the stopping-criterion motivation. The mse_ema
+        used by _save_best() above is the legacy criterion; best_cd is what we
+        actually care about for deployment quality.
+        """
+        nonlocal best_cd_held
+        if not args.inline_eval or eval_set is None:
+            return
+        # Cos-sim recovery (cheap: ~5 sec for 3 timesteps on one sample)
+        if step % args.cos_eval_every == 0:
+            from train.inline_eval import one_step_cos_diag
+            unet.eval()
+            cos = one_step_cos_diag(unet, diffusion, eval_set[0], device,
+                                     timesteps=(0, 500, 999))
+            unet.train()
+            if cos:
+                cos_str = " ".join(f"t={t}:{c:+.3f}" for t, c in cos.items())
+                print(f"  [cos@step{step:>6d}: {cos_str}]")
+                _append_eval_log({"step": step, "cos_t0": cos.get(0),
+                                  "cos_t500": cos.get(500), "cos_t999": cos.get(999)})
+        # Held-out CD-3D-raw (heavier: ~30 sec for N=16 DDIM-25 + decode + Chamfer)
+        if step % args.cd_eval_every == 0:
+            from train.inline_eval import heldout_cd_eval
+            t_ev = time.perf_counter()
+            unet.eval()
+            cd_3d, cd_bev = heldout_cd_eval(unet, vae, diffusion, eval_set,
+                                             cfg_scale=args.eval_cfg_scale, device=device)
+            unet.train()
+            dt = time.perf_counter() - t_ev
+            marker = ""
+            if step >= WARMUP_STEPS_FOR_BEST and cd_3d < best_cd_held:
+                best_cd_held = cd_3d
+                _save_best_cd()
+                marker = "  ⭐ NEW BEST CD"
+            print(f"  [held-out CD@step{step:>6d}: CD-3D={cd_3d:.4f}m  CD-BEV={cd_bev:.4f}m  "
+                  f"best={best_cd_held:.4f}m  ({dt:.1f}s){marker}]")
+            _append_eval_log({"step": step, "cd_3d_mean": cd_3d, "cd_bev_mean": cd_bev,
+                              "best_cd_held": best_cd_held})
 
     if args.steps > 0:
         iter_loader = iter(loader)
@@ -442,6 +539,7 @@ def main():
                 step += 1
                 micro = 0
                 _after_optim_step()
+                _maybe_run_inline_eval()
                 if step % args.log_every == 0 or step == 1:
                     _log(step, last_losses)
                 if args.save_every > 0 and step % args.save_every == 0:
