@@ -1,0 +1,25 @@
+DINOv3 decode vs raw nuScenes LIDAR_TOP — 4 samples
+  ckpt        : s2s_min/out/runs/2026-05-29_204102__m3-unet-15M-dinov3-fromscratch/lidar_unet_best.pt  step=7135  loss_ema=0.2665
+  cfg_scale   : 3.5
+  DDIM steps  : 25
+
+Three Chamfer metrics (m; lower = better):
+  CD-3D-raw    : decode(z_pred) vs raw nuScenes      — END-TO-END image→LiDAR
+  CD-BEV-raw   : same, xy-only                       — planar geometry
+  CD-VAE-only  : decode(μ)      vs raw nuScenes      — VAE-bottleneck (lower bound on CD-3D-raw)
+
+  idx  token                                  CD-3D-raw   CD-BEV-raw   CD-VAE-only   N_raw   N_pred   wall
+    0  000cf4dfaab54d21a7314036fde74966           1.570        0.963         0.810   34720    25917   6.85s
+    1  4007e9dce59d4b9f935c770dbad5166d           1.641        0.969         0.698   34720    27788   0.92s
+    2  7fa07947a975451da4b3d7c485af3c07           1.674        1.203         0.778   34784    21122   0.91s
+    3  bbc4b41142d1423484cdc0b7ef18484e           1.814        1.041         0.836   34720    29175   0.91s
+
+Summary (means across samples):
+  CD-3D-raw    : 1.675 m  (median 1.657)
+  CD-BEV-raw   : 1.044 m  (median 1.005)
+  CD-VAE-only  : 0.781 m  (median 0.794)
+
+Interpretation:
+  CD-VAE-only is the floor the VAE itself can hit (image→LiDAR perfect oracle).
+  CD-3D-raw minus CD-VAE-only is the diffusion model's added error.
+  Diffusion gap = +0.894 m

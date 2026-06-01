@@ -219,7 +219,7 @@ This invalidates much of the prior fix taxonomy:
 3. ✅ **Phase 0 diagnostics** — DONE. Architecture sound; the bug was in `diffusers.DDIMScheduler` config, not our code.
 4. ✅ **CFG sweep** — DONE. Optimum is w=3.5 (shifted from old w=2.5). CD-3D-raw 1.89 → 1.73 m.
 5. ✅ **C5 viability probe** — DONE (2026-05-31, see `s2s_min/docs/lidar-unet.md §13`). Verdict: single-camera C5 only modest gain (~5 %) because 92 % of LiDAR points are outside CAM_FRONT FoV.
-6. **Multicam scope-B (re-investigation with K1)** — **NEW LEAD.** The probe's outside-FoV control revealed that azimuth coverage (not depth-encoding quality) is the dominant unfixed cause of the 1 m diffusion gap. Adding 5 more cameras would bring outside-FoV from 92 % → ~20 % and compound with C5. ~2-3 days.
+6. **Multicam scope-B (re-investigation with K1)** — **NEW LEAD.** The probe's outside-FoV control revealed that azimuth coverage (not depth-encoding quality) is the dominant unfixed cause of the 1 m diffusion gap. Adding 5 more cameras would bring outside-FoV from 92 % → ~20 % and compound with C5. ~2-3 days. EMPIRICAL ANCHOR: 2026-05-31 camera-swap test (see `s2s_min/docs/lidar-unet.md §15`) showed feeding CAM_BACK to a model trained on CAM_FRONT increases CD-3D-raw by +60 % on a memorized sample — direct evidence that single-cam is FoV-locked and scope-B has structural headroom.
 7. **C5 with single CAM_FRONT** — still worth doing as a small win (~5 % CD-3D-raw reduction) if multicam path is blocked. 4 hr retrain.
 8. **K2** (fix β values to SD's 0.00085/0.012, requires retrain) — secondary. Defer to next full retrain.
 9. If C5+multicam underwhelm: full encoder swap **C1 / C2 / C3** (Depth-Anything / DINOv2 / DPT).

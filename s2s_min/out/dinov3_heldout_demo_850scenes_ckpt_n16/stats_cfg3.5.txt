@@ -1,0 +1,27 @@
+HELD-OUT eval — DINOv3 ckpt = s2s_min/out/runs/2026-05-31_175848__m3-dinov3-v5_850scenes-full-8ep/lidar_unet_best.pt
+cfg_scale: 3.5
+K1 clip_sample: False
+
+Picked 16 tokens from 30126 HELD-OUT candidates (NOT in training cache of 4023)
+
+  22604ed0b4234a8bafcb4be0eb38ee19  CD-3D-raw=1.7407  CD-BEV=0.9329
+  3f4575d907e94051ad5d394ab3e1f8cb  CD-3D-raw=1.9125  CD-BEV=1.1979
+  4d78138aa67040f98564731454e59b3d  CD-3D-raw=1.9283  CD-BEV=1.1344
+  67c796e8433a4316af7047ac10c66587  CD-3D-raw=2.0890  CD-BEV=1.3125
+  6eb503649a864d5ba2c3be32a9b5773e  CD-3D-raw=2.2056  CD-BEV=1.4038
+  78959449c1fe4b3ca679be2ab4d8e0dd  CD-3D-raw=2.5953  CD-BEV=1.8183
+  81822bd2784e4b8fb42f23f7e94609da  CD-3D-raw=2.3905  CD-BEV=1.3099
+  87cf6ea0182a4bc3ac7bbad21a1822a4  CD-3D-raw=1.7958  CD-BEV=1.1232
+  99229622df014659a9bd93276b77e719  CD-3D-raw=1.8770  CD-BEV=1.0727
+  a47ea698ce24428198045d13f1c78d0d  CD-3D-raw=2.2794  CD-BEV=1.4017
+  bc9ab90d6f0b410e81bf7a20d93a1bf5  CD-3D-raw=1.9743  CD-BEV=1.1064
+  cbec3dda9b3643e481adc292a75d1d63  CD-3D-raw=2.1928  CD-BEV=1.3823
+  d7eb501d7748490490ddbfef6ae82705  CD-3D-raw=1.6041  CD-BEV=0.9536
+  e87acf68070446c3a396571d68c181a8  CD-3D-raw=1.8524  CD-BEV=0.8273
+  eb9fcaa5ae61441f9dd2f3a9b5596082  CD-3D-raw=2.2283  CD-BEV=1.5427
+  f144de57463a4699871e7ef0e75dec52  CD-3D-raw=1.2409  CD-BEV=0.9930
+
+Mean CD-3D-raw (held-out): 1.9942 m
+Mean CD-BEV   (held-out): 1.2195 m
+Train-set ref (§12.3):    1.7300 m
+Held-out − train:         +0.2642 m  (+15.3%)

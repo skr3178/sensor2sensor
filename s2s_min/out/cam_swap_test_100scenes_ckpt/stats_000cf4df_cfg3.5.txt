@@ -1,0 +1,23 @@
+Camera-swap test — token 000cf4dfaab54d21a7314036fde74966
+ckpt: s2s_min/out/runs/2026-05-29_204102__m3-unet-15M-dinov3-fromscratch/lidar_unet_best.pt
+step / loss_ema : 7135 / 0.2665
+cfg_scale       : 3.5
+
+CAM_FRONT image : samples/CAM_FRONT/n008-2018-08-01-15-52-19-0400__CAM_FRONT__1533153712412404.jpg
+CAM_BACK  image : samples/CAM_BACK/n008-2018-08-01-15-52-19-0400__CAM_BACK__1533153712437558.jpg
+
+CONTROL (CAM_FRONT image, CAM_FRONT raymap):
+  CD-3D-raw : 1.5701 m
+  CD-BEV    : 0.9628 m
+  N_pred    : 25914
+
+SWAP (CAM_BACK image fed as if it were front, CAM_FRONT raymap):
+  CD-3D-raw : 2.5155 m   (Δ +0.9454 from control)
+  CD-BEV    : 1.5906 m   (Δ +0.6277)
+  N_pred    : 28045
+
+N_raw GT     : 34720
+
+Interpretation:
+  If CD-SWAP > CD-CONTROL by ≳0.5m  →  model's forward-region prediction degraded.
+  Visual: SWAP's forward region should resemble what's BEHIND the vehicle in GT.

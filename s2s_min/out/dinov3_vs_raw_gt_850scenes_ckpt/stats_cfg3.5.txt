@@ -1,0 +1,37 @@
+DINOv3 decode vs raw nuScenes LIDAR_TOP — 16 samples
+  ckpt        : s2s_min/out/runs/2026-05-31_175848__m3-dinov3-v5_850scenes-full-8ep/lidar_unet_best.pt  step=2394  loss_ema=0.3137
+  cfg_scale   : 3.5
+  DDIM steps  : 25
+
+Three Chamfer metrics (m; lower = better):
+  CD-3D-raw    : decode(z_pred) vs raw nuScenes      — END-TO-END image→LiDAR
+  CD-BEV-raw   : same, xy-only                       — planar geometry
+  CD-VAE-only  : decode(μ)      vs raw nuScenes      — VAE-bottleneck (lower bound on CD-3D-raw)
+
+  idx  token                                  CD-3D-raw   CD-BEV-raw   CD-VAE-only   N_raw   N_pred   wall
+    0  000cf4dfaab54d21a7314036fde74966           2.764        2.040         0.810   34720    26292   6.92s
+    1  10cd15845a314767aee99aaf99883754           2.217        1.278         0.905   34720    29207   0.93s
+    2  22b802fab63c46aa90ae3dc5e4161f83           1.471        0.841         0.587   34720    28479   0.91s
+    3  30eb523939e2405cb8e510c9aaf080c7           1.654        0.944         0.686   34720    29018   0.91s
+    4  3ffe0a614bb14a028fd1b967223b1ebf           1.546        0.899         0.747   34784    27658   0.92s
+    5  4fc38f45fb6744be814508116b602d5e           1.934        1.394         0.648   34784    22142   0.92s
+    6  5f57265ab1d6485c8f6ee8fa98f3df49           2.133        1.272         0.876   34752    29623   0.92s
+    7  6eb152276f2e4958abf8f6e38841c938           2.990        2.000         0.750   34688    28669   0.92s
+    8  7f85314dd66b4b40a7f7b123d4361ef6           1.915        1.004         0.869   34752    28980   0.92s
+    9  8eff81a377c94f2c8464116ed48b7631           2.213        1.488         0.711   34784    24030   0.92s
+   10  9e545368482a44e282aa0d7e66fe8654           2.924        2.132         0.461   34720    23343   0.92s
+   11  ad76048f576a43e4acb609d7a8ead7a5           1.707        0.850         0.683   34688    27051   0.92s
+   12  bb99cbc063344aa497ce11315ff5bf8d           3.208        2.110         0.682   34784    28915   0.92s
+   13  cce2c35e2d1a45d58eb151e8fcf9e73e           2.219        1.467         0.667   34720    27845   0.92s
+   14  de13a023e4eb45ca9db3d6e91a1295b6           2.480        1.886         0.566   34720    21005   0.92s
+   15  ef4714d891d145448b19770dc05f22ec           1.740        1.019         0.727   34720    25839   0.92s
+
+Summary (means across samples):
+  CD-3D-raw    : 2.195 m  (median 2.173)
+  CD-BEV-raw   : 1.414 m  (median 1.336)
+  CD-VAE-only  : 0.711 m  (median 0.699)
+
+Interpretation:
+  CD-VAE-only is the floor the VAE itself can hit (image→LiDAR perfect oracle).
+  CD-3D-raw minus CD-VAE-only is the diffusion model's added error.
+  Diffusion gap = +1.484 m

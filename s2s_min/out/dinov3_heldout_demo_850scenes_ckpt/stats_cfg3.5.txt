@@ -1,0 +1,15 @@
+HELD-OUT eval — DINOv3 ckpt = s2s_min/out/runs/2026-05-31_175848__m3-dinov3-v5_850scenes-full-8ep/lidar_unet_best.pt
+cfg_scale: 3.5
+K1 clip_sample: False
+
+Picked 4 tokens from 30126 HELD-OUT candidates (NOT in training cache of 4023)
+
+  67c796e8433a4316af7047ac10c66587  CD-3D-raw=2.0032  CD-BEV=1.2874
+  a47ea698ce24428198045d13f1c78d0d  CD-3D-raw=2.3838  CD-BEV=1.5914
+  e87acf68070446c3a396571d68c181a8  CD-3D-raw=1.7045  CD-BEV=0.8077
+  eb9fcaa5ae61441f9dd2f3a9b5596082  CD-3D-raw=2.0003  CD-BEV=1.3313
+
+Mean CD-3D-raw (held-out): 2.0230 m
+Mean CD-BEV   (held-out): 1.2545 m
+Train-set ref (§12.3):    1.7300 m
+Held-out − train:         +0.2930 m  (+16.9%)
