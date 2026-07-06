@@ -36,6 +36,25 @@ camera image ──▶ DINOv3 features ──▶ raymap conditioning
 All metrics are **Chamfer distance in metres (lower = better)**, `cfg=3.5`, DDIM-25 steps.
 Held-out tokens are drawn from 30,126 candidates that are **not** in the training cache.
 
+### Qualitative — camera → LiDAR (DINOv3-conditioned model, cfg 3.5, DDIM-25)
+
+Camera image with **projected LiDAR depth** — raw nuScenes ground truth (left) vs. our
+model's generated point cloud (right), colour = depth:
+
+![Camera + projected LiDAR — GT vs prediction](s2s_min/out/dinov3_oblique_image_overlay/image_overlay_cfg3.5.png)
+
+The same scenes as **3D point clouds** (oblique view) — raw GT · VAE-oracle `decode(μ)` ·
+DINOv3 prediction:
+
+![Generated point clouds, oblique 3D view](s2s_min/out/dinov3_oblique_image_overlay/oblique_grid_cfg3.5.png)
+
+### Held-out generalization — 850-scenes model, 4 unseen scenes
+
+Bird's-eye view: ground truth **(blue)** vs. prediction **(red)** vs. overlay. These 4
+tokens are **not** in the training cache (mean CD-3D-raw 2.023 m):
+
+![Held-out BEV — 850-scenes model](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt/bev_heldout_cfg3.5.png)
+
 ### LiDAR VAE (v5 — 16 epochs, 100 scenes, LPIPS terms)
 
 | Metric | Value |
@@ -57,16 +76,10 @@ The **850-scenes model generalizes ~2× better on the held-out gap** (Δ +0.264 
 MSE** — training MSE is a poor stopping signal, so evaluation is done in-loop against
 held-out Chamfer distance instead (see [`RESULTS.md`](s2s_min/RESULTS.md) §15).
 
-<details>
-<summary>Full 16-sample held-out BEV comparison sheets (GT blue · prediction red)</summary>
-
-- 850-scenes model (mean 1.994 m): [`bev_heldout_cfg3.5.png`](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt_n16/bev_heldout_cfg3.5.png)
-- 100-scenes model (mean 2.241 m): [`bev_heldout_cfg3.5.png`](s2s_min/out/dinov3_heldout_demo_100scenes_ckpt_n16/bev_heldout_cfg3.5.png)
-- Paired image → LiDAR panels: [850-scenes](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt_n16/image_heldout_cfg3.5.png) · [100-scenes](s2s_min/out/dinov3_heldout_demo_100scenes_ckpt_n16/image_heldout_cfg3.5.png)
-
-![Held-out BEV, 850-scenes model](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt_n16/bev_heldout_cfg3.5.png)
-
-</details>
+Larger evaluation sheets (16 held-out samples each):
+[BEV — 850-scenes (mean 1.994 m)](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt_n16/bev_heldout_cfg3.5.png) ·
+[BEV — 100-scenes (mean 2.241 m)](s2s_min/out/dinov3_heldout_demo_100scenes_ckpt_n16/bev_heldout_cfg3.5.png) ·
+[image → LiDAR, 850-scenes](s2s_min/out/dinov3_heldout_demo_850scenes_ckpt_n16/image_heldout_cfg3.5.png)
 
 ### End-to-end (v5 VAE + diffusion, 4 held-out keyframes)
 
